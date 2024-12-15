@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+    <!-- VideoContext CDN -->
+    <script src="https://unpkg.com/videocontext/dist/videocontext.min.js"></script>
     <!-- Google Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
@@ -486,6 +488,16 @@
             z-index: 2;
         }
 
+        #viewportCanvas {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
         .debug-button {
             background-color: #6a0dad;
             color: #fff;
@@ -733,6 +745,12 @@
                     <button id="save-config-button">Save Current Config</button>
                 </div>
             </details>
+
+            <!-- New Viewport Debug Button -->
+            <button id="viewport-debug-button" class="debug-button">Show Viewport Debug</button>
+
+            <!-- Existing Show Debug Button -->
+            <button id="debug-button" class="debug-button">Show Debug</button>
         </div>
         <button id="debug-button" class="debug-button">Show Debug</button>
     </div>
@@ -774,6 +792,8 @@
                 <canvas id="webglCanvas"></canvas>
             </div>
             <div id="focusIndicator">Processing...</div>
+            <!-- New VideoContext Canvas -->
+            <canvas id="viewportCanvas"></canvas>
         </div>
         <div id="controls">
             <div class="buttons-container">
@@ -1563,12 +1583,13 @@
 
             const configName = prompt('Enter a name for the configuration (e.g., "safe"):'); // Prompt for custom name
             if (!configName) return;
+            const sanitizedConfigName = configName.replace(/[^a-z0-9_\-]/gi, '_'); // Sanitize filename
 
             const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${configName}.json`; // Save with custom name
+            a.download = `${sanitizedConfigName}.json`; // Save with custom name
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1664,6 +1685,7 @@
         }
         document.getElementById('save-logs-button').addEventListener('click', saveLogs);
 
+        // Show/Hide Debug Canvas and Console
         (function(){
             const debugButton = document.getElementById('debug-button');
             const debugCanvas = document.getElementById('debugCanvas');
@@ -1686,6 +1708,110 @@
                     debugControls.style.display='none';
                     debugButton.innerText='Show Debug';
                 }
+            });
+        })();
+
+        // VideoContext Integration
+        (function(){
+            // Initialize variables
+            let videoContext;
+            let videoNode;
+            let effectNode;
+            let isViewportDebugVisible = false;
+
+            // Create VideoContext when the canvas is shown
+            async function initializeViewportDebug() {
+                const canvas = document.getElementById('viewportCanvas');
+
+                // Ensure VideoContext is only initialized once
+                if (!videoContext) {
+                    videoContext = new VideoContext(canvas);
+
+                    // Access camera feed
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    const videoElement = document.createElement('video');
+                    videoElement.srcObject = stream;
+                    videoElement.autoplay = true;
+                    videoElement.playsInline = true;
+
+                    // Ensure the video is loaded before adding to VideoContext
+                    await videoElement.play();
+
+                    // Add video source to VideoContext
+                    videoNode = videoContext.video(videoElement);
+
+                    // Create an effect node for preprocessing
+                    effectNode = videoContext.effect({
+                        title: "Custom Shader Effect",
+                        vertexShader: `
+                            attribute vec2 a_position;
+                            void main() {
+                                gl_Position = vec4(a_position, 0.0, 1.0);
+                            }
+                        `,
+                        fragmentShader: `
+                            precision mediump float;
+                            uniform sampler2D u_image;
+                            uniform float brightness;
+                            uniform float contrast;
+                            varying vec2 v_texCoord;
+
+                            void main() {
+                                vec4 color = texture2D(u_image, v_texCoord);
+                                color.rgb += brightness; // Adjust brightness
+                                color.rgb = (color.rgb - 0.5) * contrast + 0.5; // Adjust contrast
+                                gl_FragColor = color;
+                            }
+                        `,
+                        properties: {
+                            brightness: { type: "float", default: 0.0 }, // Default brightness adjustment
+                            contrast: { type: "float", default: 1.0 },   // Default contrast adjustment
+                        },
+                    });
+
+                    // Connect nodes
+                    videoNode.connect(effectNode);
+                    effectNode.connect(videoContext.destination);
+
+                    // Start playback
+                    videoContext.play();
+                }
+            }
+
+            // Update preprocessing controls in real time
+            function updateEffectProperties(brightness, contrast) {
+                if (effectNode) {
+                    if (brightness !== undefined) {
+                        effectNode.brightness = brightness;
+                    }
+                    if (contrast !== undefined) {
+                        effectNode.contrast = contrast;
+                    }
+                }
+            }
+
+            // Handle "Show Viewport Debug" button click
+            document.getElementById('viewport-debug-button').addEventListener('click', () => {
+                const canvas = document.getElementById('viewportCanvas');
+                isViewportDebugVisible = !isViewportDebugVisible;
+
+                if (isViewportDebugVisible) {
+                    canvas.style.display = 'block';
+                    initializeViewportDebug();
+                } else {
+                    canvas.style.display = 'none';
+                }
+            });
+
+            // Add listeners for preprocessing controls (brightness and contrast sliders)
+            brightnessSlider.addEventListener('input', (event) => {
+                const brightness = parseFloat(event.target.value) / 100; // Normalize to 0-1 range
+                updateEffectProperties(brightness, undefined);
+            });
+
+            contrastSlider.addEventListener('input', (event) => {
+                const contrast = parseFloat(event.target.value) / 50; // Normalize to 0-2 range
+                updateEffectProperties(undefined, contrast);
             });
         })();
 
