@@ -284,14 +284,12 @@
             z-index: 3;
         }
 
+        /* Removed max-width and height for debugCanvas */
         #debugCanvas {
             position: absolute;
-            width: 60%;
-            /* Removed max-width: 350px; */
-            height: 150px;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 0;
+            left: 0;
+            /* width and height are now handled by JavaScript based on ROI sliders */
             z-index: 2;
             pointer-events: none;
             border: 1px solid #ccc;
@@ -513,7 +511,7 @@
                 padding: 15px;
             }
             #debugCanvas {
-                height: 150px;
+                /* Removed height constraint */
             }
             #debugConsole {
                 height: 150px;
@@ -1406,9 +1404,9 @@
             const roiCtx = roiCanvas.getContext('2d');
             roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0,0,roiW,roiH);
 
-            const scaleFactor = 1.5;
-            scaledCanvas.width = roiW * scaleFactor;
-            scaledCanvas.height = roiH * scaleFactor;
+            // Removed scaling factor to prevent squeezing
+            scaledCanvas.width = roiW;
+            scaledCanvas.height = roiH;
             const scaledCtx = scaledCanvas.getContext('2d');
             scaledCtx.imageSmoothingEnabled = true;
             scaledCtx.imageSmoothingQuality = 'high';
@@ -1416,8 +1414,8 @@
 
             const preprocessedBlob = await preprocessWithWebGL(scaledCanvas);
 
-            debugCanvas.width = scaledCanvas.width;
-            debugCanvas.height = scaledCanvas.height;
+            debugCanvas.width = roiW;
+            debugCanvas.height = roiH;
             debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
             const img = await createImageBitmap(preprocessedBlob);
             debugCtx.drawImage(img,0,0);
@@ -1840,9 +1838,9 @@
             const roiCtx=roiCanvas.getContext('2d');
             roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH,0,0,roiW,roiH);
 
-            const scaleFactor=1.5;
-            scaledCanvas.width=roiW*scaleFactor;
-            scaledCanvas.height=roiH*scaleFactor;
+            // Removed scaling factor to prevent squeezing
+            scaledCanvas.width=roiW;
+            scaledCanvas.height=roiH;
             const scaledCtx=scaledCanvas.getContext('2d');
             scaledCtx.imageSmoothingEnabled=true;
             scaledCtx.imageSmoothingQuality='high';
@@ -1850,8 +1848,8 @@
 
             const preprocessedBlob=await preprocessWithWebGL(scaledCanvas);
 
-            debugCanvas.width=scaledCanvas.width;
-            debugCanvas.height=scaledCanvas.height;
+            debugCanvas.width=roiW;
+            debugCanvas.height=roiH;
             debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
             const img=await createImageBitmap(preprocessedBlob);
             debugCtx.drawImage(img,0,0);
@@ -2010,7 +2008,7 @@
             const videoWidth = video.videoWidth;
             const videoHeight = video.videoHeight;
             videoCanvas.width = videoWidth;
-            videoCanvas.height= video.videoHeight;
+            videoCanvas.height= videoHeight;
             const ctx = videoCanvas.getContext('2d');
             ctx.drawImage(video,0,0,videoWidth,videoHeight);
 
@@ -2033,9 +2031,9 @@
             const roiCtx=roiCanvas.getContext('2d');
             roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH,0,0,roiW,roiH);
 
-            const scaleFactor=1.5;
-            scaledCanvas.width=roiW*scaleFactor;
-            scaledCanvas.height=roiH*scaleFactor;
+            // Removed scaling factor to prevent squeezing
+            scaledCanvas.width=roiW;
+            scaledCanvas.height=roiH;
             const scaledCtx=scaledCanvas.getContext('2d');
             scaledCtx.imageSmoothingEnabled=true;
             scaledCtx.imageSmoothingQuality='high';
@@ -2043,8 +2041,8 @@
 
             const preprocessedBlob=await preprocessWithWebGL(scaledCanvas);
 
-            debugCanvas.width=scaledCanvas.width;
-            debugCanvas.height=scaledCanvas.height;
+            debugCanvas.width=roiW;
+            debugCanvas.height=roiH;
             debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
             const img=await createImageBitmap(preprocessedBlob);
             debugCtx.drawImage(img,0,0);
