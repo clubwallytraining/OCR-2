@@ -1802,61 +1802,7 @@
             });
         })();
 
-        async function captureFrameAndPerformOCR() {
-            if(!scanning) return;
-            // Just one-off capture
-            scanning = false;
-            const videoWidth = video.videoWidth;
-            const videoHeight = video.videoHeight;
-            videoCanvas.width = videoWidth;
-            videoCanvas.height= videoHeight;
-            const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video,0,0,videoWidth,videoHeight);
-
-            const overlayRect = roiOverlay.getBoundingClientRect();
-            const videoRect = video.getBoundingClientRect();
-            const scaleX = videoWidth/videoRect.width;
-            const scaleY = videoHeight/videoRect.height;
-            const roiX=(overlayRect.left - videoRect.left)*scaleX;
-            const roiY=(overlayRect.top - videoRect.top)*scaleY;
-            const roiW=overlayRect.width*scaleX;
-            const roiH=overlayRect.height*scaleY;
-            if(roiX<0||roiY<0||(roiX+roiW)>videoWidth||(roiY+roiH)>videoHeight){
-                showError('ROI out of frame bounds');
-                scanning=false;
-                return;
-            }
-
-            roiCanvas.width=roiW;
-            roiCanvas.height=roiH;
-            const roiCtx=roiCanvas.getContext('2d');
-            roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH,0,0,roiW,roiH);
-
-            // Removed scaling factor to prevent squeezing
-            scaledCanvas.width=roiW;
-            scaledCanvas.height=roiH;
-            const scaledCtx=scaledCanvas.getContext('2d');
-            scaledCtx.imageSmoothingEnabled=true;
-            scaledCtx.imageSmoothingQuality='high';
-            scaledCtx.drawImage(roiCanvas,0,0,scaledCanvas.width,scaledCanvas.height);
-
-            const preprocessedBlob=await preprocessWithWebGL(scaledCanvas);
-
-            debugCanvas.width=roiW;
-            debugCanvas.height=roiH;
-            debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
-            const img=await createImageBitmap(preprocessedBlob);
-            debugCtx.drawImage(img,0,0);
-
-            // Calculate average brightness
-            const averageBrightness = calculateAverageBrightness(debugCanvas);
-            updateLightbulb(averageBrightness);
-
-            if(preprocessedBlob){
-                await performOCR(preprocessedBlob);
-            }
-            scanning=true;
-        }
+        
 
         // Function to update ROI overlay based on slider values
         function updateROIOverlay() {
