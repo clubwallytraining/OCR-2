@@ -289,8 +289,8 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%; /* Ensures it matches the overlay's width */
-            height: 100%; /* Ensures it matches the overlay's height */
+            width: auto; /* Remove percentage-based scaling */
+            height: auto; /* Remove percentage-based scaling */
             z-index: 4; /* Higher z-index to appear above overlay if needed */
             pointer-events: none;
             border: none; /* Remove border if overlay already has one */
@@ -1380,55 +1380,53 @@
                 return;
             }
 
-            const videoWidth = video.videoWidth;
-            const videoHeight = video.videoHeight;
-            videoCanvas.width = videoWidth;
-            videoCanvas.height = videoHeight;
+            // Use displayed video dimensions
+            const videoDisplayWidth = video.clientWidth;
+            const videoDisplayHeight = video.clientHeight;
 
-            const roiW = videoWidth * (roiWidthPercent / 100);
-            const roiH = videoHeight * (roiHeightPercent / 100);
+            const roiW = videoDisplayWidth * (roiWidthPercent / 100);
+            const roiH = videoDisplayHeight * (roiHeightPercent / 100);
 
-            const roiX = (videoWidth - roiW) / 2;
-            const roiY = (videoHeight - roiH) / 2;
+            const roiX = (videoDisplayWidth - roiW) / 2;
+            const roiY = (videoDisplayHeight - roiH) / 2;
 
+            // Draw the video frame onto videoCanvas using displayed dimensions
+            videoCanvas.width = videoDisplayWidth;
+            videoCanvas.height = videoDisplayHeight;
             const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+            ctx.drawImage(video, 0, 0, videoDisplayWidth, videoDisplayHeight);
+
+            // Crop the ROI based on displayed dimensions
             roiCanvas.width = roiW;
             roiCanvas.height = roiH;
             const roiCtx = roiCanvas.getContext('2d');
             roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
 
-            // Removed scaling factor to prevent squeezing
-            scaledCanvas.width = roiW;
-            scaledCanvas.height = roiH;
-            const scaledCtx = scaledCanvas.getContext('2d');
-            scaledCtx.imageSmoothingEnabled = true;
-            scaledCtx.imageSmoothingQuality = 'high';
-            scaledCtx.drawImage(roiCanvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
+            // Preprocess with WebGL
+            const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
 
-            const preprocessedBlob = await preprocessWithWebGL(scaledCanvas);
-
-            const debugCanvas = document.getElementById('debugCanvas');
-            const debugCtx = debugCanvas.getContext('2d');
-            debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+            // Draw to debugCanvas without scaling
+            const debugCanvasElement = document.getElementById('debugCanvas');
+            const debugContext = debugCanvasElement.getContext('2d');
+            debugContext.clearRect(0, 0, debugCanvasElement.width, debugCanvasElement.height);
             const img = await createImageBitmap(preprocessedBlob);
-            debugCtx.drawImage(img, 0, 0);
+            debugContext.drawImage(img, 0, 0, debugCanvasElement.width, debugCanvasElement.height);
 
             // Calculate average brightness
-            const averageBrightness = calculateAverageBrightness(debugCanvas);
+            const averageBrightness = calculateAverageBrightness(debugCanvasElement);
             updateLightbulb(averageBrightness);
 
             // Draw effect labels
-            debugCtx.font = '16px Arial';
-            debugCtx.fillStyle = 'yellow';
+            debugContext.font = '16px Arial';
+            debugContext.fillStyle = 'yellow';
             let yOffset = 20;
-            if (enableGrayscale.checked) { debugCtx.fillText(`Grayscale: ${grayscaleSlider.value}%`, 10, yOffset); yOffset += 20; }
-            if (enableDenoise.checked) { debugCtx.fillText(`Denoise: ${denoiseSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableSharpen.checked) { debugCtx.fillText(`Sharpen: ${sharpenSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableBrightness.checked) { debugCtx.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableContrast.checked) { debugCtx.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableClarity.checked) { debugCtx.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableHighlights.checked) { debugCtx.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); }
+            if (enableGrayscale.checked) { debugContext.fillText(`Grayscale: ${grayscaleSlider.value}%`, 10, yOffset); yOffset += 20; }
+            if (enableDenoise.checked) { debugContext.fillText(`Denoise: ${denoiseSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableSharpen.checked) { debugContext.fillText(`Sharpen: ${sharpenSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableBrightness.checked) { debugContext.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableContrast.checked) { debugContext.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableClarity.checked) { debugContext.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); }
 
             console.log(`Average Brightness: ${averageBrightness}`);
 
@@ -1806,26 +1804,34 @@
 
         // Function to update ROI overlay based on slider values
         function updateROIOverlay() {
-            const videoWrapper = document.getElementById('videoWrapper');
-            const video = document.getElementById('video');
-            const overlay = document.getElementById('overlay');
-            const debugCanvas = document.getElementById('debugCanvas');
+            const overlayWidthPercent = roiWidthPercent + '%';
+            const overlayHeightPercent = roiHeightPercent + '%';
 
-            // Calculate overlay size based on percentage
-            const overlayWidth = roiWidthPercent + '%';
-            const overlayHeight = roiHeightPercent + '%';
-
-            overlay.style.width = overlayWidth;
-            overlay.style.height = overlayHeight;
+            overlay.style.width = overlayWidthPercent;
+            overlay.style.height = overlayHeightPercent;
 
             // Center the overlay
             overlay.style.top = '50%';
             overlay.style.left = '50%';
             overlay.style.transform = 'translate(-50%, -50%)';
 
-            // No need to set debugCanvas dimensions as it inherits from overlay
-            const debugCtx = debugCanvas.getContext('2d');
-            debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+            // Get the overlay's display size in pixels
+            const overlayDisplayWidth = overlay.clientWidth;
+            const overlayDisplayHeight = overlay.clientHeight;
+
+            // Set debugCanvas internal dimensions to match display size
+            const debugCanvasElement = document.getElementById('debugCanvas');
+            debugCanvasElement.width = overlayDisplayWidth;
+            debugCanvasElement.height = overlayDisplayHeight;
+
+            // Ensure CSS dimensions match internal dimensions
+            debugCanvasElement.style.width = overlayDisplayWidth + 'px';
+            debugCanvasElement.style.height = overlayDisplayHeight + 'px';
+
+            // Log for verification
+            console.log(`Overlay Display Size: ${overlayDisplayWidth}px x ${overlayDisplayHeight}px`);
+            console.log(`Debug Canvas Internal Size: ${debugCanvasElement.width}px x ${debugCanvasElement.height}px`);
+            console.log(`Debug Canvas CSS Size: ${debugCanvasElement.style.width}px x ${debugCanvasElement.style.height}px`);
         }
 
         // Configuration Management System Implementation Continued
@@ -1934,56 +1940,52 @@
             if(!scanning) return;
             // Just one-off capture
             scanning = false;
-            const videoWidth = video.videoWidth;
-            const videoHeight = video.videoHeight;
-            videoCanvas.width = videoWidth;
-            videoCanvas.height= videoHeight;
+            const videoDisplayWidth = video.clientWidth;
+            const videoDisplayHeight = video.clientHeight;
+            videoCanvas.width = videoDisplayWidth;
+            videoCanvas.height= videoDisplayHeight;
             const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video,0,0,videoWidth,videoHeight);
+            ctx.drawImage(video,0,0,videoDisplayWidth, videoDisplayHeight);
 
             const overlayRect = roiOverlay.getBoundingClientRect();
             const videoRect = video.getBoundingClientRect();
-            const scaleX = videoWidth/videoRect.width;
-            const scaleY = videoHeight/videoRect.height;
-            const roiX=(overlayRect.left - videoRect.left)*scaleX;
-            const roiY=(overlayRect.top - videoRect.top)*scaleY;
-            const roiW=overlayRect.width*scaleX;
-            const roiH=overlayRect.height*scaleY;
-            if(roiX<0||roiY<0||(roiX+roiW)>videoWidth||(roiY+roiH)>videoHeight){
+            const scaleX = videoDisplayWidth / videoRect.width;
+            const scaleY = videoDisplayHeight / videoRect.height;
+            const roiX = (overlayRect.left - videoRect.left) * scaleX;
+            const roiY = (overlayRect.top - videoRect.top) * scaleY;
+            const roiW = overlayRect.width * scaleX;
+            const roiH = overlayRect.height * scaleY;
+            if(roiX < 0 || roiY < 0 || (roiX + roiW) > videoDisplayWidth || (roiY + roiH) > videoDisplayHeight){
                 showError('ROI out of frame bounds');
-                scanning=false;
+                scanning = false;
                 return;
             }
 
-            roiCanvas.width=roiW;
-            roiCanvas.height=roiH;
-            const roiCtx=roiCanvas.getContext('2d');
-            roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH,0,0,roiW,roiH);
+            roiCanvas.width = roiW;
+            roiCanvas.height = roiH;
+            const roiCtx = roiCanvas.getContext('2d');
+            roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
 
-            // Removed scaling factor to prevent squeezing
-            scaledCanvas.width=roiW;
-            scaledCanvas.height=roiH;
-            const scaledCtx=scaledCanvas.getContext('2d');
-            scaledCtx.imageSmoothingEnabled=true;
-            scaledCtx.imageSmoothingQuality='high';
-            scaledCtx.drawImage(roiCanvas,0,0,scaledCanvas.width,scaledCanvas.height);
+            // Preprocess with WebGL
+            const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
 
-            const preprocessedBlob=await preprocessWithWebGL(scaledCanvas);
-
-            debugCanvas.width=roiW;
-            debugCanvas.height=roiH;
-            debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
-            const img=await createImageBitmap(preprocessedBlob);
-            debugCtx.drawImage(img,0,0);
+            // Draw to debugCanvas without scaling
+            const debugCanvasElement = document.getElementById('debugCanvas');
+            debugCanvasElement.width = debugCanvasElement.width; // Reset width to clear previous content
+            debugCanvasElement.height = debugCanvasElement.height; // Reset height to clear previous content
+            const debugContext = debugCanvasElement.getContext('2d');
+            debugContext.clearRect(0,0,debugCanvasElement.width, debugCanvasElement.height);
+            const img = await createImageBitmap(preprocessedBlob);
+            debugContext.drawImage(img,0,0, debugCanvasElement.width, debugCanvasElement.height);
 
             // Calculate average brightness
-            const averageBrightness = calculateAverageBrightness(debugCanvas);
+            const averageBrightness = calculateAverageBrightness(debugCanvasElement);
             updateLightbulb(averageBrightness);
 
             if(preprocessedBlob){
                 await performOCR(preprocessedBlob);
             }
-            scanning=true;
+            scanning = true;
         }
 
     </script>
