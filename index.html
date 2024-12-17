@@ -284,7 +284,7 @@
             z-index: 3;
         }
 
-        /* Updated debugCanvas styles */
+        /* Updated debugCanvas Styles */
         #debugCanvas {
             position: absolute;
             top: 0;
@@ -295,7 +295,7 @@
             pointer-events: none;
             border: none; /* Remove border if overlay already has one */
             background: transparent; /* Make background transparent to see the overlay */
-            display: none; /* Initially hidden */
+            display: none;
         }
 
         #focusIndicator {
@@ -510,7 +510,9 @@
             .side-menu {
                 padding: 15px;
             }
-            /* Removed height constraint for debugCanvas since it's now handled by CSS */
+            #debugCanvas {
+                /* Removed height constraint */
+            }
             #debugConsole {
                 height: 150px;
                 font-size: 13px;
@@ -829,6 +831,7 @@
             <button id="restart-button">Restart Scanner</button>
             <textarea id="output" placeholder="Extracted text will appear here..." readonly></textarea>
         </div>
+        <!-- Removed the original debugCanvas from here -->
     </div>
     <div id="debugControls">
         <button id="save-logs-button">Save Logs</button>
@@ -1405,12 +1408,11 @@
 
             const preprocessedBlob = await preprocessWithWebGL(scaledCanvas);
 
+            const debugCanvas = document.getElementById('debugCanvas');
             const debugCtx = debugCanvas.getContext('2d');
-            debugCanvas.width = debugCanvas.clientWidth;
-            debugCanvas.height = debugCanvas.clientHeight;
-            debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
+            debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
             const img = await createImageBitmap(preprocessedBlob);
-            debugCtx.drawImage(img,0,0, debugCanvas.width, debugCanvas.height);
+            debugCtx.drawImage(img, 0, 0);
 
             // Calculate average brightness
             const averageBrightness = calculateAverageBrightness(debugCanvas);
@@ -1420,12 +1422,12 @@
             debugCtx.font = '16px Arial';
             debugCtx.fillStyle = 'yellow';
             let yOffset = 20;
-            if (enableGrayscale.checked) { debugCtx.fillText(`Grayscale: ${grayscaleSlider.value}%`, 10, yOffset); yOffset+=20; }
-            if (enableDenoise.checked) { debugCtx.fillText(`Denoise: ${denoiseSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableSharpen.checked) { debugCtx.fillText(`Sharpen: ${sharpenSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableBrightness.checked) { debugCtx.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableContrast.checked) { debugCtx.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableClarity.checked) { debugCtx.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset+=20; }
+            if (enableGrayscale.checked) { debugCtx.fillText(`Grayscale: ${grayscaleSlider.value}%`, 10, yOffset); yOffset += 20; }
+            if (enableDenoise.checked) { debugCtx.fillText(`Denoise: ${denoiseSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableSharpen.checked) { debugCtx.fillText(`Sharpen: ${sharpenSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableBrightness.checked) { debugCtx.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableContrast.checked) { debugCtx.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableClarity.checked) { debugCtx.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset += 20; }
             if (enableHighlights.checked) { debugCtx.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); }
 
             console.log(`Average Brightness: ${averageBrightness}`);
@@ -1840,30 +1842,15 @@
 
             const preprocessedBlob=await preprocessWithWebGL(scaledCanvas);
 
-            debugCanvas.width=debugCanvas.clientWidth;
-            debugCanvas.height=debugCanvas.clientHeight;
-            const debugCtx = debugCanvas.getContext('2d');
+            debugCanvas.width=roiW;
+            debugCanvas.height=roiH;
             debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
             const img=await createImageBitmap(preprocessedBlob);
-            debugCtx.drawImage(img,0,0, debugCanvas.width, debugCanvas.height);
+            debugCtx.drawImage(img,0,0);
 
             // Calculate average brightness
             const averageBrightness = calculateAverageBrightness(debugCanvas);
             updateLightbulb(averageBrightness);
-
-            // Draw effect labels
-            debugCtx.font = '16px Arial';
-            debugCtx.fillStyle = 'yellow';
-            let yOffset = 20;
-            if (enableGrayscale.checked) { debugCtx.fillText(`Grayscale: ${grayscaleSlider.value}%`, 10, yOffset); yOffset+=20; }
-            if (enableDenoise.checked) { debugCtx.fillText(`Denoise: ${denoiseSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableSharpen.checked) { debugCtx.fillText(`Sharpen: ${sharpenSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableBrightness.checked) { debugCtx.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableContrast.checked) { debugCtx.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableClarity.checked) { debugCtx.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset+=20; }
-            if (enableHighlights.checked) { debugCtx.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); }
-
-            console.log(`Average Brightness: ${averageBrightness}`);
 
             if(preprocessedBlob){
                 await performOCR(preprocessedBlob);
@@ -1996,6 +1983,62 @@
         });
 
         // Configuration Management System Implementation Continued
+
+        async function captureFrameAndPerformOCR() {
+            if(!scanning) return;
+            // Just one-off capture
+            scanning = false;
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+            videoCanvas.width = videoWidth;
+            videoCanvas.height= videoHeight;
+            const ctx = videoCanvas.getContext('2d');
+            ctx.drawImage(video,0,0,videoWidth,videoHeight);
+
+            const overlayRect = roiOverlay.getBoundingClientRect();
+            const videoRect = video.getBoundingClientRect();
+            const scaleX = videoWidth/videoRect.width;
+            const scaleY = videoHeight/videoRect.height;
+            const roiX=(overlayRect.left - videoRect.left)*scaleX;
+            const roiY=(overlayRect.top - videoRect.top)*scaleY;
+            const roiW=overlayRect.width*scaleX;
+            const roiH=overlayRect.height*scaleY;
+            if(roiX<0||roiY<0||(roiX+roiW)>videoWidth||(roiY+roiH)>videoHeight){
+                showError('ROI out of frame bounds');
+                scanning=false;
+                return;
+            }
+
+            roiCanvas.width=roiW;
+            roiCanvas.height=roiH;
+            const roiCtx=roiCanvas.getContext('2d');
+            roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH,0,0,roiW,roiH);
+
+            // Removed scaling factor to prevent squeezing
+            scaledCanvas.width=roiW;
+            scaledCanvas.height=roiH;
+            const scaledCtx=scaledCanvas.getContext('2d');
+            scaledCtx.imageSmoothingEnabled=true;
+            scaledCtx.imageSmoothingQuality='high';
+            scaledCtx.drawImage(roiCanvas,0,0,scaledCanvas.width,scaledCanvas.height);
+
+            const preprocessedBlob=await preprocessWithWebGL(scaledCanvas);
+
+            debugCanvas.width=roiW;
+            debugCanvas.height=roiH;
+            debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
+            const img=await createImageBitmap(preprocessedBlob);
+            debugCtx.drawImage(img,0,0);
+
+            // Calculate average brightness
+            const averageBrightness = calculateAverageBrightness(debugCanvas);
+            updateLightbulb(averageBrightness);
+
+            if(preprocessedBlob){
+                await performOCR(preprocessedBlob);
+            }
+            scanning=true;
+        }
 
     </script>
 </body>
