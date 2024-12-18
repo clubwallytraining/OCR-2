@@ -884,6 +884,7 @@
         </div>
 
         <button id="debug-button" class="debug-button">Show Debug</button>
+
     </div>
 
     <div class="overlay" id="menu-overlay"></div>
@@ -1073,9 +1074,6 @@
                 cannyCheckbox.checked = false;
                 updatePreprocessing();
                 alert('High pixel density not detected. Sharpening and edge detection have been disabled to optimize performance.');
-            } else {
-                // Enable features if desired
-                // Users can manually enable them
             }
         }
 
@@ -1253,7 +1251,10 @@
                     float stepSize = 1.0 / 300.0; // Adjust based on image size
                     
                     for(int i = 0; i < 9; i++) {
-                        vec2 offset = vec2(float((i % 3) - 1), float((i / 3) - 1)) * stepSize;
+                        float i_f = float(i);
+                        int row = int(floor(i_f / 3.0));
+                        int col = i - 3 * row;
+                        vec2 offset = vec2(float(col - 1), float(row - 1)) * stepSize;
                         float gray = (texture2D(image, coord + offset).r + texture2D(image, coord + offset).g + texture2D(image, coord + offset).b) / 3.0;
                         edgeX += gray * kernelX[i];
                         edgeY += gray * kernelY[i];
@@ -1451,8 +1452,9 @@
                 videoConstraints.frameRate = { ideal: adjustedFrameRate, max: isHighPerformanceDevice ? 30 : 20 };
 
                 if (resolution) {
-                    videoConstraints.width = { exact: resolution.width };
-                    videoConstraints.height = { exact: resolution.height };
+                    const [width, height] = resolution.split('x').map(Number);
+                    videoConstraints.width = { exact: width };
+                    videoConstraints.height = { exact: height };
                 } else {
                     videoConstraints.width = { ideal: 1280 };
                     videoConstraints.height = { ideal: 720 };
@@ -1478,7 +1480,7 @@
             const val = resolutionSelect.value;
             if (!val) return null;
             const [width, height] = val.split('x').map(Number);
-            return {width, height};
+            return `${width}x${height}`;
         }
 
         // Function to calculate average brightness
@@ -2405,8 +2407,6 @@
             }
             scanning = true;
         }
-
-        // Configuration Management System Implementation Continued
 
         // Utility to convert canvas to Blob asynchronously
         HTMLCanvasElement.prototype.toBlobAsync = function() {
