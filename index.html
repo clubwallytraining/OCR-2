@@ -2271,67 +2271,86 @@
             stopButton.addEventListener('click', stopScanning);
             restartButton.addEventListener('click', startScanning); // Assuming restart just starts scanning again
 
-            // Event listeners for brightness controls
-            brightnessSlider.addEventListener('input', updatePreprocessing);
-            brightnessSlider.addEventListener('change', updatePreprocessing);
-            brightnessSlider.addEventListener('input', () => { brightnessValue.textContent = brightnessSlider.value; });
+            // Array of preprocessing controls
+            const preprocessingControls = [
+                { slider: grayscaleSlider, valueDisplay: grayscaleValue },
+                { slider: denoiseSlider, valueDisplay: denoiseValue },
+                { slider: sharpenSlider, valueDisplay: sharpenValue },
+                { slider: brightnessSlider, valueDisplay: brightnessValue },
+                { slider: contrastSlider, valueDisplay: contrastValue },
+                { slider: claritySlider, valueDisplay: clarityValue },
+                { slider: highlightsSlider, valueDisplay: highlightsValue },
+                { slider: smoothingSlider, valueDisplay: smoothingValue },
+                { slider: thresholdSlider, valueDisplay: thresholdValue },
+                { slider: edgeIntensitySlider, valueDisplay: edgeIntensityValue }
+                // Add other sliders as needed
+            ];
 
-            // Event listeners for other preprocessing controls
-            grayscaleSlider.addEventListener('input', updatePreprocessing);
-            grayscaleSlider.addEventListener('change', updatePreprocessing);
-            grayscaleSlider.addEventListener('input', () => { grayscaleValue.textContent = grayscaleSlider.value; });
-
-            denoiseSlider.addEventListener('input', updatePreprocessing);
-            denoiseSlider.addEventListener('change', updatePreprocessing);
-            denoiseSlider.addEventListener('input', () => { denoiseValue.textContent = denoiseSlider.value; });
-
-            sharpenSlider.addEventListener('input', updatePreprocessing);
-            sharpenSlider.addEventListener('change', updatePreprocessing);
-            sharpenSlider.addEventListener('input', () => { sharpenValue.textContent = sharpenSlider.value; });
-
-            contrastSlider.addEventListener('input', updatePreprocessing);
-            contrastSlider.addEventListener('change', updatePreprocessing);
-            contrastSlider.addEventListener('input', () => { contrastValue.textContent = contrastSlider.value; });
-
-            claritySlider.addEventListener('input', updatePreprocessing);
-            claritySlider.addEventListener('change', updatePreprocessing);
-            claritySlider.addEventListener('input', () => { clarityValue.textContent = claritySlider.value; });
-
-            highlightsSlider.addEventListener('input', updatePreprocessing);
-            highlightsSlider.addEventListener('change', updatePreprocessing);
-            highlightsSlider.addEventListener('input', () => { highlightsValue.textContent = highlightsSlider.value; });
-
-            // New Event Listeners for Smoothing and Thresholding
-            enableSmoothing.addEventListener('change', function() {
-                smoothingSlider.disabled = !this.checked;
-                updatePreprocessing();
-            });
-            smoothingSlider.addEventListener('input', function() {
-                smoothingValue.textContent = this.value;
-                updatePreprocessing();
-            });
-            smoothingSlider.addEventListener('change', updatePreprocessing);
-
-            enableThresholding.addEventListener('change', function() {
-                thresholdSlider.disabled = !this.checked;
-                updatePreprocessing();
-            });
-            thresholdSlider.addEventListener('input', function() {
-                thresholdValue.textContent = this.value;
-                updatePreprocessing();
-            });
-            thresholdSlider.addEventListener('change', updatePreprocessing);
-
-            // Event listeners for Edge Detection controls
-            sobelCheckbox.addEventListener('change', function() {
-                updatePreprocessing();
+            // Attach event listeners for sliders
+            preprocessingControls.forEach(control => {
+                control.slider.addEventListener('input', () => {
+                    control.valueDisplay.textContent = control.slider.value + (control.slider.id.includes('threshold') ? '' : (control.slider.id.includes('grayscale') || control.slider.id.includes('smoothing') ? '%' : ''));
+                    updatePreprocessing();
+                });
+                control.slider.addEventListener('change', updatePreprocessing);
             });
 
-            edgeIntensitySlider.addEventListener('input', function() {
-                edgeIntensityValue.textContent = this.value;
-                updatePreprocessing();
+            // Array of preprocessing checkboxes
+            const preprocessingCheckboxes = [
+                enableGrayscale,
+                enableDenoise,
+                enableSharpen,
+                enableBrightness,
+                enableContrast,
+                enableClarity,
+                enableHighlights,
+                enableSmoothing,
+                enableThresholding,
+                sobelCheckbox
+                // Add other checkboxes as needed
+            ];
+
+            // Attach event listeners for checkboxes
+            preprocessingCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // Enable or disable corresponding sliders based on checkbox state
+                    switch(this.id) {
+                        case 'enableGrayscale':
+                            grayscaleSlider.disabled = !this.checked;
+                            break;
+                        case 'enableDenoise':
+                            denoiseSlider.disabled = !this.checked;
+                            break;
+                        case 'enableSharpen':
+                            sharpenSlider.disabled = !this.checked;
+                            break;
+                        case 'enableBrightness':
+                            brightnessSlider.disabled = !this.checked;
+                            break;
+                        case 'enableContrast':
+                            contrastSlider.disabled = !this.checked;
+                            break;
+                        case 'enableClarity':
+                            claritySlider.disabled = !this.checked;
+                            break;
+                        case 'enableHighlights':
+                            highlightsSlider.disabled = !this.checked;
+                            break;
+                        case 'enableSmoothing':
+                            smoothingSlider.disabled = !this.checked;
+                            break;
+                        case 'enableThresholding':
+                            thresholdSlider.disabled = !this.checked;
+                            break;
+                        case 'sobelCheckbox':
+                            // No slider to disable
+                            break;
+                        default:
+                            break;
+                    }
+                    updatePreprocessing();
+                });
             });
-            edgeIntensitySlider.addEventListener('change', updatePreprocessing);
 
             // Event listeners for ROI sliders
             roiWidthSlider.addEventListener('input', function() {
@@ -2451,4 +2470,4 @@
 
     </script>
 </body>
-</html>
+                                  </html>
