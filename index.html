@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced OCR Scanner with Lighting Feedback</title>
+    <title>Advanced OCR Scanner with Enhanced WebGL Preprocessing</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Tesseract.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
@@ -618,6 +618,84 @@
             margin-top: 5px;
         }
 
+        /* New Controls for Smoothing, Thresholding, and Edge Detection */
+        /* Smoothing Control */
+        .smoothing-control {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+        }
+        .smoothing-control label {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .smoothing-control input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .smoothing-control .value-display {
+            align-self: flex-end;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* Thresholding Control */
+        .thresholding-control {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+        }
+        .thresholding-control label {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .thresholding-control input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .thresholding-control .value-display {
+            align-self: flex-end;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        /* Edge Detection Control */
+        .edge-detection-control {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+        }
+        .edge-detection-control label {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .edge-presets {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        .edge-presets input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        .edge-intensity-control {
+            display: flex;
+            flex-direction: column;
+            margin-top: 5px;
+        }
+        .edge-intensity-control label {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .edge-intensity-control input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .edge-intensity-control .value-display {
+            align-self: flex-end;
+            font-size: 14px;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -737,6 +815,37 @@
                     <div class="preprocessing-option">
                         <label><input type="checkbox" id="enableHighlights">Enable Highlights</label>
                         <input type="range" id="highlightsSlider" class="preprocessing-option-slider" min="0" max="100" value="50">
+                    </div>
+
+                    <!-- New Smoothing Control -->
+                    <div class="smoothing-control">
+                        <label for="smoothingSlider">Smoothing</label>
+                        <input type="range" id="smoothingSlider" class="preprocessing-option-slider" min="0" max="100" value="0" aria-label="Smoothing Slider">
+                        <span id="smoothingValue" class="value-display">0</span>
+                    </div>
+
+                    <!-- New Thresholding Control -->
+                    <div class="thresholding-control">
+                        <label for="thresholdSlider">Thresholding</label>
+                        <input type="range" id="thresholdSlider" class="preprocessing-option-slider" min="0" max="255" value="128" aria-label="Thresholding Slider">
+                        <span id="thresholdValue" class="value-display">128</span>
+                    </div>
+
+                    <!-- New Edge Detection Control -->
+                    <div class="edge-detection-control">
+                        <label>Edge Detection</label>
+                        <div class="edge-presets">
+                            <input type="checkbox" id="sobelCheckbox" name="edgeAlgorithm" value="sobel">
+                            <label for="sobelCheckbox">Sobel</label>
+                            
+                            <input type="checkbox" id="cannyCheckbox" name="edgeAlgorithm" value="canny">
+                            <label for="cannyCheckbox">Canny</label>
+                        </div>
+                        <div class="edge-intensity-control">
+                            <label for="edgeIntensitySlider">Edge Intensity</label>
+                            <input type="range" id="edgeIntensitySlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Edge Intensity Slider">
+                            <span id="edgeIntensityValue" class="value-display">50</span>
+                        </div>
                     </div>
                 </content>
             </details>
@@ -876,6 +985,7 @@
 
         // Keep track of initialization states to lazy load workers, webgl, etc.
         let glInitialized = false;
+        let useCanvas2DPreprocessing = false; // Flag for fallback
 
         const video = document.getElementById('video');
         const roiOverlay = document.getElementById('overlay');
@@ -909,6 +1019,16 @@
         const enableHighlights = document.getElementById('enableHighlights');
         const highlightsSlider = document.getElementById('highlightsSlider');
 
+        // New Controls for Smoothing, Thresholding, and Edge Detection
+        const smoothingSlider = document.getElementById('smoothingSlider');
+        const smoothingValue = document.getElementById('smoothingValue');
+        const thresholdSlider = document.getElementById('thresholdSlider');
+        const thresholdValue = document.getElementById('thresholdValue');
+        const sobelCheckbox = document.getElementById('sobelCheckbox');
+        const cannyCheckbox = document.getElementById('cannyCheckbox');
+        const edgeIntensitySlider = document.getElementById('edgeIntensitySlider');
+        const edgeIntensityValue = document.getElementById('edgeIntensityValue');
+
         // ROI controls
         const roiWidthSlider = document.getElementById('roi-width-slider');
         const roiHeightSlider = document.getElementById('roi-height-slider');
@@ -936,6 +1056,28 @@
         lightingFeedback.style.display = 'none';
         lightingFeedback.innerText = 'Good Lighting';
         document.getElementById('videoWrapper').appendChild(lightingFeedback);
+
+        // Device Pixel Density
+        const pixelDensity = window.devicePixelRatio || 1;
+        console.log(`Pixel Density: ${pixelDensity}`);
+
+        // Flags based on device pixel density
+        let isHighPerformanceDevice = pixelDensity >= 1.5;
+
+        // Dynamic worker scaling variables based on pixel density
+        function adjustWorkersBasedOnPixelDensity() {
+            if (pixelDensity < 1.5) {
+                // Disable sharpening and edge detection
+                enableSharpen.checked = false;
+                sobelCheckbox.checked = false;
+                cannyCheckbox.checked = false;
+                updatePreprocessing();
+                alert('High pixel density not detected. Sharpening and edge detection have been disabled to optimize performance.');
+            } else {
+                // Enable features if desired
+                // Users can manually enable them
+            }
+        }
 
         // Lazy initialization function for Tesseract workers
         async function initializeTesseract(workersCount) {
@@ -974,12 +1116,14 @@
 
         // Initialize WebGL if needed
         function initWebGL() {
-            if (glInitialized) return;
+            if (glInitialized || useCanvas2DPreprocessing) return;
             const webglCanvas = document.getElementById('webglCanvas');
             // Use mediump precision for performance on mobile
-            gl = webglCanvas.getContext('webgl') || webglCanvas.getContext('experimental-webgl');
+            gl = webglCanvas.getContext('webgl', { preserveDrawingBuffer: false }) || webglCanvas.getContext('experimental-webgl', { preserveDrawingBuffer: false });
             if (!gl) {
-                showError('WebGL not supported');
+                showError('WebGL not supported. Falling back to Canvas 2D preprocessing.');
+                useCanvas2DPreprocessing = true;
+                initializeCanvas2DPreprocessing();
                 return;
             }
 
@@ -988,12 +1132,13 @@
                 attribute vec2 a_position;
                 attribute vec2 a_texCoord;
                 varying vec2 v_texCoord;
+
                 void main(void) {
                     gl_Position = vec4(a_position, 0.0, 1.0);
                     v_texCoord = a_texCoord;
                 }
             `;
-            // Use mediump for mobile performance
+
             const fragmentShaderSource = `
                 precision mediump float;
                 varying vec2 v_texCoord;
@@ -1012,6 +1157,14 @@
                 uniform float u_clarityAmount;
                 uniform bool u_highlightsEnabled;
                 uniform float u_highlightsAmount;
+
+                // New Uniforms for Smoothing, Thresholding, and Edge Detection
+                uniform int u_smoothingAmount;
+                uniform int u_thresholdValue;
+                uniform int u_edgeDetection; // 0: None, 1: Sobel, 2: Canny, 3: Both
+                uniform int u_edgeIntensity;
+
+                uniform bool u_isHighPerformanceDevice;
 
                 vec4 denoise(sampler2D tex, vec2 uv, float strength) {
                     // Reduce the sampling kernel for performance
@@ -1067,37 +1220,119 @@
                     return color;
                 }
 
+                // New Functions for Smoothing, Thresholding, and Edge Detection
+                vec4 applySmoothing(sampler2D tex, vec2 uv, int amount) {
+                    if (amount <= 0) return texture2D(tex, uv);
+                    float blurSize = float(amount) / 100.0;
+                    vec4 color = texture2D(tex, uv);
+                    color += texture2D(tex, uv + vec2(-blurSize, -blurSize));
+                    color += texture2D(tex, uv + vec2(blurSize, -blurSize));
+                    color += texture2D(tex, uv + vec2(-blurSize, blurSize));
+                    color += texture2D(tex, uv + vec2(blurSize, blurSize));
+                    return color / 5.0;
+                }
+
+                // Function to apply Sobel operator
+                vec3 applySobel(sampler2D image, vec2 coord, float intensity) {
+                    float edgeX = 0.0;
+                    float edgeY = 0.0;
+                    float kernelX[9];
+                    float kernelY[9];
+                    
+                    // Sobel kernels
+                    kernelX[0] = -1.0; kernelY[0] = -1.0;
+                    kernelX[1] = 0.0; kernelY[1] = -2.0;
+                    kernelX[2] = 1.0; kernelY[2] = -1.0;
+                    kernelX[3] = -2.0; kernelY[3] = 0.0;
+                    kernelX[4] = 0.0; kernelY[4] = 0.0;
+                    kernelX[5] = 2.0; kernelY[5] = 0.0;
+                    kernelX[6] = -1.0; kernelY[6] = 1.0;
+                    kernelX[7] = 0.0; kernelY[7] = 2.0;
+                    kernelX[8] = 1.0; kernelY[8] = 1.0;
+                    
+                    float stepSize = 1.0 / 300.0; // Adjust based on image size
+                    
+                    for(int i = 0; i < 9; i++) {
+                        vec2 offset = vec2(float((i % 3) - 1), float((i / 3) - 1)) * stepSize;
+                        float gray = (texture2D(image, coord + offset).r + texture2D(image, coord + offset).g + texture2D(image, coord + offset).b) / 3.0;
+                        edgeX += gray * kernelX[i];
+                        edgeY += gray * kernelY[i];
+                    }
+                    
+                    float magnitude = length(vec2(edgeX, edgeY)) * intensity / 100.0;
+                    return vec3(magnitude);
+                }
+
+                // Function to apply Canny operator (simplified)
+                vec3 applyCanny(sampler2D image, vec2 coord, float intensity) {
+                    // Canny implementation placeholder
+                    return applySobel(image, coord, intensity);
+                }
+
                 void main(void) {
                     vec4 color = texture2D(u_texture, v_texCoord);
 
-                    // Conditional application of effects
+                    // Apply smoothing if enabled
+                    color = applySmoothing(u_texture, v_texCoord, u_smoothingAmount);
+
+                    // Apply thresholding
+                    float gray = (color.r + color.g + color.b) / 3.0 * 255.0;
+                    if (gray > float(u_thresholdValue)) {
+                        color = vec4(1.0);
+                    } else {
+                        color = vec4(0.0);
+                    }
+
+                    // Apply grayscale if enabled
+                    if (u_grayscaleEnabled) {
+                        float grayScale = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                        color = mix(color, vec4(vec3(grayScale), color.a), u_grayscaleAmount);
+                    }
+
+                    // Apply denoise if enabled
                     if (u_denoiseEnabled) {
                         color = denoise(u_texture, v_texCoord, u_denoiseAmount);
                     }
 
+                    // Apply sharpen if enabled
                     if (u_sharpenEnabled) {
                         color = sharpen(u_texture, v_texCoord, u_sharpenAmount);
                     }
 
+                    // Apply brightness if enabled
                     if (u_brightnessEnabled) {
                         color = applyBrightness(color, u_brightnessAmount);
                     }
 
+                    // Apply contrast if enabled
                     if (u_contrastEnabled) {
                         color = applyContrast(color, u_contrastAmount);
                     }
 
+                    // Apply clarity if enabled
                     if (u_clarityEnabled) {
                         color = applyClarity(color, u_clarityAmount);
                     }
 
+                    // Apply highlights if enabled
                     if (u_highlightsEnabled) {
                         color = applyHighlights(color, u_highlightsAmount);
                     }
 
-                    if (u_grayscaleEnabled) {
-                        float gray = dot(color.rgb, vec3(0.299,0.587,0.114));
-                        color = mix(color, vec4(vec3(gray), color.a), u_grayscaleAmount);
+                    // Apply edge detection if enabled and device is high performance
+                    if (u_edgeDetection > 0 && u_isHighPerformanceDevice) {
+                        vec3 edges = vec3(0.0);
+                        if (u_edgeDetection == 1 || u_edgeDetection == 3) {
+                            edges += applySobel(u_texture, v_texCoord, float(u_edgeIntensity));
+                        }
+                        if (u_edgeDetection == 2 || u_edgeDetection == 3) {
+                            edges += applyCanny(u_texture, v_texCoord, float(u_edgeIntensity));
+                        }
+                        // Combine edges with the thresholded image
+                        float edgeStrength = (edges.r + edges.g + edges.b) / 3.0;
+                        if (edgeStrength > 0.5) {
+                            color = vec4(1.0);
+                        }
                     }
 
                     gl_FragColor = color;
@@ -1123,6 +1358,10 @@
             gl.linkProgram(glProgram);
             if (!gl.getProgramParameter(glProgram, gl.LINK_STATUS)) {
                 console.error('Program link error:', gl.getProgramInfoLog(glProgram));
+                showError('Failed to link WebGL program. Falling back to Canvas 2D preprocessing.');
+                useCanvas2DPreprocessing = true;
+                initializeCanvas2DPreprocessing();
+                return;
             }
             gl.useProgram(glProgram);
 
@@ -1168,10 +1407,25 @@
                 clarityAmount: gl.getUniformLocation(glProgram, "u_clarityAmount"),
                 highlightsEnabled: gl.getUniformLocation(glProgram, "u_highlightsEnabled"),
                 highlightsAmount: gl.getUniformLocation(glProgram, "u_highlightsAmount"),
+
+                // New Uniforms
+                smoothingAmount: gl.getUniformLocation(glProgram, "u_smoothingAmount"),
+                thresholdValue: gl.getUniformLocation(glProgram, "u_thresholdValue"),
+                edgeDetection: gl.getUniformLocation(glProgram, "u_edgeDetection"),
+                edgeIntensity: gl.getUniformLocation(glProgram, "u_edgeIntensity"),
+                isHighPerformanceDevice: gl.getUniformLocation(glProgram, "u_isHighPerformanceDevice")
             };
+
+            gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
 
             gl.clearColor(0.0,0.0,0.0,1.0);
             glInitialized = true;
+        }
+
+        function initializeCanvas2DPreprocessing() {
+            // Implement Canvas 2D preprocessing here
+            // Placeholder for future implementation
+            console.log('Canvas 2D preprocessing initialized.');
         }
 
         function showError(message) {
@@ -1192,9 +1446,9 @@
                     videoConstraints.facingMode = { exact: "environment" };
                 }
 
-                // Adjust camera framerate based on OCR frequency
-                const adjustedFrameRate = Math.max(ocrFrequency, 15);
-                videoConstraints.frameRate = { ideal: adjustedFrameRate, max: 30 };
+                // Adjust camera framerate based on OCR frequency and pixel density
+                const adjustedFrameRate = Math.max(ocrFrequency, isHighPerformanceDevice ? 15 : 10);
+                videoConstraints.frameRate = { ideal: adjustedFrameRate, max: isHighPerformanceDevice ? 30 : 20 };
 
                 if (resolution) {
                     videoConstraints.width = { exact: resolution.width };
@@ -1286,6 +1540,9 @@
             selectedCameraId = document.getElementById('camera-select').value || null;
             await initCamera(currentResolution, selectedCameraId);
 
+            // Adjust workers based on pixel density
+            adjustWorkersBasedOnPixelDensity();
+
             // Lazy init workers if needed
             const workersCount = parseInt(workersSelect.value);
             if (!isTesseractInitialized) {
@@ -1297,8 +1554,8 @@
             confidenceThreshold = parseInt(confidenceThresholdInput.value);
             updateOcrInfo();
 
-            // Init WebGL if not done yet
-            if (!glInitialized) {
+            // Init WebGL if not done yet and fallback is not set
+            if (!glInitialized && !useCanvas2DPreprocessing) {
                 initWebGL();
             }
 
@@ -1402,15 +1659,25 @@
             const roiCtx = roiCanvas.getContext('2d');
             roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
 
-            // Preprocess with WebGL
-            const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
+            let preprocessedBlob = null;
+
+            if (useCanvas2DPreprocessing) {
+                // Implement Canvas 2D preprocessing here
+                // Placeholder: directly use the ROI canvas
+                preprocessedBlob = await roiCanvas.toBlobAsync();
+            } else {
+                // Preprocess with WebGL
+                preprocessedBlob = await preprocessWithWebGL(roiCanvas);
+            }
 
             // Draw to debugCanvas without scaling
             const debugCanvasElement = document.getElementById('debugCanvas');
             const debugContext = debugCanvasElement.getContext('2d');
             debugContext.clearRect(0, 0, debugCanvasElement.width, debugCanvasElement.height);
-            const img = await createImageBitmap(preprocessedBlob);
-            debugContext.drawImage(img, 0, 0, debugCanvasElement.width, debugCanvasElement.height);
+            if (preprocessedBlob) {
+                const img = await createImageBitmap(preprocessedBlob);
+                debugContext.drawImage(img, 0, 0, debugCanvasElement.width, debugCanvasElement.height);
+            }
 
             // Calculate average brightness
             const averageBrightness = calculateAverageBrightness(debugCanvasElement);
@@ -1426,7 +1693,16 @@
             if (enableBrightness.checked) { debugContext.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset += 20; }
             if (enableContrast.checked) { debugContext.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset += 20; }
             if (enableClarity.checked) { debugContext.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); }
+            if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); yOffset += 20; }
+
+            // New Effect Labels
+            if (smoothingSlider.value > 0) { debugContext.fillText(`Smoothing: ${smoothingSlider.value}`, 10, yOffset); yOffset += 20; }
+            debugContext.fillText(`Thresholding: ${thresholdSlider.value}`, 10, yOffset); yOffset += 20;
+            if (sobelCheckbox.checked) { debugContext.fillText(`Edge Detection: Sobel`, 10, yOffset); yOffset += 20; }
+            if (cannyCheckbox.checked) { debugContext.fillText(`Edge Detection: Canny`, 10, yOffset); yOffset += 20; }
+            if (sobelCheckbox.checked || cannyCheckbox.checked) {
+                debugContext.fillText(`Edge Intensity: ${edgeIntensitySlider.value}`, 10, yOffset);
+            }
 
             console.log(`Average Brightness: ${averageBrightness}`);
 
@@ -1434,13 +1710,18 @@
                 await performOCR(preprocessedBlob);
             }
 
-            // Adaptive frame skipping based on processing time
+            // Adaptive frame skipping based on processing time and pixel density
             const processingTime = performance.now() - startTime;
             if (dynamicAdjust) {
                 if (processingTime > targetFrameTime && frameSkipping < maxSkipping) {
                     frameSkipping++;
                 } else if (processingTime < targetFrameTime && frameSkipping > 1) {
                     frameSkipping--;
+                }
+
+                // Further adjust based on pixel density
+                if (pixelDensity < 1.5 && frameSkipping < maxSkipping) {
+                    frameSkipping++;
                 }
             }
 
@@ -1449,6 +1730,8 @@
 
         async function preprocessWithWebGL(sourceCanvas) {
             initWebGL();
+            if (useCanvas2DPreprocessing) return null;
+
             const width = sourceCanvas.width;
             const height = sourceCanvas.height;
 
@@ -1483,6 +1766,19 @@
 
             gl.uniform1i(window.uLocations.highlightsEnabled, enableHighlights.checked ? 1 : 0);
             gl.uniform1f(window.uLocations.highlightsAmount, parseFloat(highlightsSlider.value));
+
+            // Set new uniform values
+            gl.uniform1i(window.uLocations.smoothingAmount, parseInt(smoothingSlider.value, 10));
+            gl.uniform1i(window.uLocations.thresholdValue, parseInt(thresholdSlider.value, 10));
+
+            let edgeDetection = 0;
+            if (sobelCheckbox.checked) edgeDetection += 1; // 1 for Sobel
+            if (cannyCheckbox.checked) edgeDetection += 2; // 2 for Canny
+            gl.uniform1i(window.uLocations.edgeDetection, edgeDetection); // 0: None, 1: Sobel, 2: Canny, 3: Both
+
+            gl.uniform1i(window.uLocations.edgeIntensity, parseInt(edgeIntensitySlider.value, 10));
+
+            gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
 
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -1613,6 +1909,32 @@
                 document.getElementById('enableHighlights').checked = preprocessing.enableHighlights || false;
                 document.getElementById('highlightsSlider').value = preprocessing.highlights || 50;
 
+                // Apply new smoothing, thresholding, and edge detection settings
+                smoothingSlider.value = preprocessing.smoothing || 0;
+                smoothingValue.textContent = preprocessing.smoothing || 0;
+
+                thresholdSlider.value = preprocessing.thresholding || 128;
+                thresholdValue.textContent = preprocessing.thresholding || 128;
+
+                if (preprocessing.edgeDetection) {
+                    if (preprocessing.edgeDetection.sobel) {
+                        sobelCheckbox.checked = true;
+                    } else {
+                        sobelCheckbox.checked = false;
+                    }
+                    if (preprocessing.edgeDetection.canny) {
+                        cannyCheckbox.checked = true;
+                    } else {
+                        cannyCheckbox.checked = false;
+                    }
+                } else {
+                    sobelCheckbox.checked = false;
+                    cannyCheckbox.checked = false;
+                }
+
+                edgeIntensitySlider.value = preprocessing.edgeIntensity || 50;
+                edgeIntensityValue.textContent = preprocessing.edgeIntensity || 50;
+
                 // Apply ROI settings
                 const roiSettings = configData.roi || {};
                 roiWidthPercent = roiSettings.roiWidth || 60;
@@ -1654,7 +1976,16 @@
                     enableClarity: document.getElementById('enableClarity').checked,
                     clarity: document.getElementById('claritySlider').value,
                     enableHighlights: document.getElementById('enableHighlights').checked,
-                    highlights: document.getElementById('highlightsSlider').value
+                    highlights: document.getElementById('highlightsSlider').value,
+
+                    // New Preprocessing Settings
+                    smoothing: smoothingSlider.value,
+                    thresholding: thresholdSlider.value,
+                    edgeDetection: {
+                        sobel: sobelCheckbox.checked,
+                        canny: cannyCheckbox.checked
+                    },
+                    edgeIntensity: edgeIntensitySlider.value
                 },
                 roi: {
                     roiWidth: roiWidthPercent,
@@ -1761,7 +2092,8 @@
             const blob = new Blob([logsText],{type:'text/plain'});
             const url = URL.createObjectURL(blob);
             const a=document.createElement('a');
-            a.href=url; a.download='logs.txt';
+            a.href=url;
+            a.download='logs.txt';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -1800,24 +2132,22 @@
             });
         })();
 
-        
-
         // Function to update ROI overlay based on slider values
         function updateROIOverlay() {
             const overlayWidthPercent = roiWidthPercent + '%';
             const overlayHeightPercent = roiHeightPercent + '%';
 
-            overlay.style.width = overlayWidthPercent;
-            overlay.style.height = overlayHeightPercent;
+            roiOverlay.style.width = overlayWidthPercent;
+            roiOverlay.style.height = overlayHeightPercent;
 
             // Center the overlay
-            overlay.style.top = '50%';
-            overlay.style.left = '50%';
-            overlay.style.transform = 'translate(-50%, -50%)';
+            roiOverlay.style.top = '50%';
+            roiOverlay.style.left = '50%';
+            roiOverlay.style.transform = 'translate(-50%, -50%)';
 
             // Get the overlay's display size in pixels
-            const overlayDisplayWidth = overlay.clientWidth;
-            const overlayDisplayHeight = overlay.clientHeight;
+            const overlayDisplayWidth = roiOverlay.clientWidth;
+            const overlayDisplayHeight = roiOverlay.clientHeight;
 
             // Set debugCanvas internal dimensions to match display size
             const debugCanvasElement = document.getElementById('debugCanvas');
@@ -1895,6 +2225,7 @@
 
         (async function populateCamerasOnLoad(){
             await populateCameras();
+            adjustWorkersBasedOnPixelDensity();
         })();
 
         // Function to initialize the application on DOMContentLoaded
@@ -1905,21 +2236,38 @@
             restartButton.addEventListener('click', startScanning); // Assuming restart just starts scanning again
 
             // Event listeners for brightness controls
-            brightnessSlider.addEventListener('input', () => {
-                // Optional: Display current brightness value if needed
-                // For example, update a label showing the current brightness value
-                // brightnessValue.innerText = brightnessSlider.value;
+            brightnessSlider.addEventListener('input', updatePreprocessing);
+
+            // Event listeners for other preprocessing controls
+            grayscaleSlider.addEventListener('input', updatePreprocessing);
+            denoiseSlider.addEventListener('input', updatePreprocessing);
+            sharpenSlider.addEventListener('input', updatePreprocessing);
+            contrastSlider.addEventListener('input', updatePreprocessing);
+            claritySlider.addEventListener('input', updatePreprocessing);
+            highlightsSlider.addEventListener('input', updatePreprocessing);
+
+            // New Event Listeners for Smoothing, Thresholding, and Edge Detection
+            smoothingSlider.addEventListener('input', function() {
+                smoothingValue.textContent = this.value;
+                updatePreprocessing();
             });
 
-            // Event listeners for other preprocessing controls can be added similarly
+            thresholdSlider.addEventListener('input', function() {
+                thresholdValue.textContent = this.value;
+                updatePreprocessing();
+            });
 
-            // Event listener for ROI overlay click (optional functionality)
-            roiOverlay.addEventListener('click', async () => {
-                if (scanning) {
-                    // Focus request logic (not changed for performance)
-                    // Just capture and OCR once
-                    await captureFrameAndPerformOCR();
-                }
+            sobelCheckbox.addEventListener('change', function() {
+                updatePreprocessing();
+            });
+
+            cannyCheckbox.addEventListener('change', function() {
+                updatePreprocessing();
+            });
+
+            edgeIntensitySlider.addEventListener('input', function() {
+                edgeIntensityValue.textContent = this.value;
+                updatePreprocessing();
             });
 
             // Event listeners for ROI sliders
@@ -1932,7 +2280,67 @@
                 roiHeightPercent = parseInt(this.value);
                 updateROIOverlay();
             });
+
+            // Adjust workers based on pixel density on load
+            adjustWorkersBasedOnPixelDensity();
         });
+
+        // Function to handle preprocessing updates
+        function updatePreprocessing() {
+            if (useCanvas2DPreprocessing) return; // Skip if using Canvas 2D
+
+            // Update grayscale
+            gl.uniform1i(window.uLocations.grayscaleEnabled, enableGrayscale.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.grayscaleAmount, parseFloat(grayscaleSlider.value) / 100.0);
+
+            // Update denoise
+            gl.uniform1i(window.uLocations.denoiseEnabled, enableDenoise.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.denoiseAmount, parseFloat(denoiseSlider.value));
+
+            // Update sharpen
+            gl.uniform1i(window.uLocations.sharpenEnabled, enableSharpen.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.sharpenAmount, parseFloat(sharpenSlider.value));
+
+            // Update brightness
+            gl.uniform1i(window.uLocations.brightnessEnabled, enableBrightness.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.brightnessAmount, parseFloat(brightnessSlider.value));
+
+            // Update contrast
+            gl.uniform1i(window.uLocations.contrastEnabled, enableContrast.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.contrastAmount, parseFloat(contrastSlider.value));
+
+            // Update clarity
+            gl.uniform1i(window.uLocations.clarityEnabled, enableClarity.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.clarityAmount, parseFloat(claritySlider.value));
+
+            // Update highlights
+            gl.uniform1i(window.uLocations.highlightsEnabled, enableHighlights.checked ? 1 : 0);
+            gl.uniform1f(window.uLocations.highlightsAmount, parseFloat(highlightsSlider.value));
+
+            // Update smoothing
+            gl.uniform1i(window.uLocations.smoothingAmount, parseInt(smoothingSlider.value, 10));
+
+            // Update thresholding
+            gl.uniform1i(window.uLocations.thresholdValue, parseInt(thresholdSlider.value, 10));
+
+            // Update edge detection
+            let edgeDetection = 0;
+            if (sobelCheckbox.checked) edgeDetection += 1; // 1 for Sobel
+            if (cannyCheckbox.checked) edgeDetection += 2; // 2 for Canny
+            gl.uniform1i(window.uLocations.edgeDetection, edgeDetection); // 0: None, 1: Sobel, 2: Canny, 3: Both
+
+            // Update edge intensity
+            gl.uniform1i(window.uLocations.edgeIntensity, parseInt(edgeIntensitySlider.value, 10));
+
+            // Update high performance device flag
+            gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
+
+            // Redraw debug canvas if scanning
+            if (scanning) {
+                // Trigger immediate frame processing
+                requestAnimationFrame(processFrame);
+            }
+        }
 
         // Configuration Management System Implementation Continued
 
@@ -1966,8 +2374,16 @@
             const roiCtx = roiCanvas.getContext('2d');
             roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
 
-            // Preprocess with WebGL
-            const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
+            let preprocessedBlob = null;
+
+            if (useCanvas2DPreprocessing) {
+                // Implement Canvas 2D preprocessing here
+                // Placeholder: directly use the ROI canvas
+                preprocessedBlob = await roiCanvas.toBlobAsync();
+            } else {
+                // Preprocess with WebGL
+                preprocessedBlob = await preprocessWithWebGL(roiCanvas);
+            }
 
             // Draw to debugCanvas without scaling
             const debugCanvasElement = document.getElementById('debugCanvas');
@@ -1975,8 +2391,10 @@
             debugCanvasElement.height = debugCanvasElement.height; // Reset height to clear previous content
             const debugContext = debugCanvasElement.getContext('2d');
             debugContext.clearRect(0,0,debugCanvasElement.width, debugCanvasElement.height);
-            const img = await createImageBitmap(preprocessedBlob);
-            debugContext.drawImage(img,0,0, debugCanvasElement.width, debugCanvasElement.height);
+            if (preprocessedBlob) {
+                const img = await createImageBitmap(preprocessedBlob);
+                debugContext.drawImage(img,0,0, debugCanvasElement.width, debugCanvasElement.height);
+            }
 
             // Calculate average brightness
             const averageBrightness = calculateAverageBrightness(debugCanvasElement);
@@ -1986,6 +2404,47 @@
                 await performOCR(preprocessedBlob);
             }
             scanning = true;
+        }
+
+        // Configuration Management System Implementation Continued
+
+        // Utility to convert canvas to Blob asynchronously
+        HTMLCanvasElement.prototype.toBlobAsync = function() {
+            return new Promise((resolve) => {
+                this.toBlob(resolve, 'image/png');
+            });
+        }
+
+        // Initialize based on device pixel density
+        adjustWorkersBasedOnPixelDensity();
+
+        // Enhanced Error Handling and User Feedback
+        function handleWebGLFailure() {
+            showError('WebGL preprocessing failed. Switching to Canvas 2D preprocessing.');
+            useCanvas2DPreprocessing = true;
+            initializeCanvas2DPreprocessing();
+        }
+
+        // Initial adjustments based on pixel density
+        function adjustWorkersBasedOnPixelDensity() {
+            if (pixelDensity < 1.5) {
+                // Disable sharpening and edge detection
+                enableSharpen.checked = false;
+                sobelCheckbox.checked = false;
+                cannyCheckbox.checked = false;
+                updatePreprocessing();
+                alert('High pixel density not detected. Sharpening and edge detection have been disabled to optimize performance.');
+            }
+        }
+
+        // WebGL Fallback Implementation
+        function initWebGLWithFallback() {
+            try {
+                initWebGL();
+            } catch (error) {
+                console.error('WebGL initialization failed:', error);
+                handleWebGLFailure();
+            }
         }
 
     </script>
