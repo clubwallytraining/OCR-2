@@ -2,289 +2,229 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced OCR Scanner with Enhanced WebGL Preprocessing</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Tesseract.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-    <!-- Google Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-
+    <title>OCR Scanner with Real-Time Preprocessing</title>
     <style>
-        /* Base and Theme Styles */
-        *, *::before, *::after {
+        /* Reset and Basic Styles */
+        * {
             box-sizing: border-box;
-        }
-        html, body {
             margin: 0;
             padding: 0;
+        }
+
+        body {
             font-family: 'Inter', sans-serif;
-            font-size: 16px;
-            background: #f9f9f9;
+            background-color: #f0f0f0;
             color: #333;
-            height: 120%;
-            width: 100%;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-        html.dark-theme, body.dark-theme {
-            background: #121212;
-            color: #e0e0e0;
-        }
-
-        .theme-toggle {
-            position: relative;
-            top: 20px;
-            right: 20px;
             display: flex;
-            align-items: center;
-            z-index: 1000;
-        }
-        .theme-toggle input {
-            display: none;
-        }
-        .toggle-label {
-            position: relative;
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            width: 80px;
-        }
-        .toggle-switch {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 50px;
-            height: 24px;
-            background-color: #ccc;
-            border-radius: 12px;
-            transition: background-color 0.3s ease;
-            margin: 0 5px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 5px;
-        }
-        .toggle-icon {
-            width: 20px;
-            height: 20px;
-            transition: opacity 0.3s ease;
-            flex-shrink: 0;
-            font-size: 18px;
-        }
-        .sun-icon {
-            opacity: 1;
-            pointer-events: none;
-        }
-        .moon-icon {
-            opacity: 0;
-            pointer-events: none;
-        }
-        input:checked ~ .toggle-switch {
-            background-color: #4f46e5;
-        }
-        input:checked ~ .toggle-switch .sun-icon {
-            opacity: 0;
-        }
-        input:checked ~ .toggle-switch .moon-icon {
-            opacity: 1;
-        }
-
-        .side-menu {
-            position: absolute;
-            top: 0;
-            left: -300px;
-            width: 300px;
-            height: 180vh;
-            background-color: #2c3e50;
-            color: #ecf0f1;
-            overflow-y: auto;
-            transition: left 0.3s ease;
-            z-index: 1001;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .side-menu.active {
-            left: 0;
-        }
-        #fpsCounter {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: #fff;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            z-index: 1005;
-        }
-
-        .menu-content {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            flex: 1;
-            overflow-y: auto;
-        }
-        .collapsible {
-            border: 1px solid #444;
-            border-radius: 8px;
-            background-color: #34495e;
+            height: 100vh;
             overflow: hidden;
         }
-        .collapsible summary {
-            padding: 10px 15px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            list-style: none;
-            user-select: none;
-            background-color: #2c3e50;
+
+        /* Side Menu Styles */
+        .side-menu {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 300px;
+            height: 100%;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            padding: 20px;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
+            transform: translateX(-100%);
+            z-index: 1000;
         }
-        .collapsible summary::-webkit-details-marker {
-            display: none;
+
+        .side-menu.active {
+            transform: translateX(0);
         }
-        .collapsible content {
-            padding: 10px 15px;
-            display: none;
-            flex-direction: column;
-            gap: 15px;
+
+        .side-menu h2 {
+            margin-bottom: 15px;
+            font-size: 24px;
         }
-        .collapsible[open] content {
-            display: flex;
-        }
-        #side-menu label {
-            font-size: 16px;
-            margin-bottom: 4px;
+
+        .side-menu label {
             display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
         }
-        #resolution-select, #camera-select, #workers-select, #frame-skipping-select, #frequency-select, #confidence-threshold-input, #config-select {
+
+        .side-menu select,
+        .side-menu input[type="number"],
+        .side-menu input[type="range"] {
             width: 100%;
             padding: 8px;
-            font-size: 14px;
-            border-radius: 6px;
+            margin-bottom: 15px;
             border: 1px solid #ccc;
-            background-color: #fff;
-            margin-bottom: 10px;
-        }
-        body.dark-theme #resolution-select,
-        body.dark-theme #camera-select,
-        body.dark-theme #workers-select,
-        body.dark-theme #frame-skipping-select,
-        body.dark-theme #frequency-select,
-        body.dark-theme #confidence-threshold-input,
-        body.dark-theme #config-select {
-            background-color: #1e1e1e;
-            border: 1px solid #555;
-            color: #e0e0e0;
+            border-radius: 4px;
         }
 
-        #ocr-info {
-            font-size: 14px;
-            color: #f1c40f;
-            margin-top: -10px;
-            margin-bottom: 10px;
-        }
-
-        .menu-toggle {
-            position: relative;
-            top: 20px;
-            left: 20px;
-            width: 30px;
-            height: 25px;
+        .side-menu button {
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3498db;
+            color: #fff;
             cursor: pointer;
-            z-index: 1002;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .menu-toggle span {
-            display: block;
-            height: 4px;
-            background-color: #333;
-            border-radius: 2px;
             transition: background-color 0.3s ease;
-        }
-        .side-menu.active + .menu-toggle span {
-            background-color: #ecf0f1;
+            width: 100%;
+            font-size: 16px;
         }
 
+        .side-menu button:hover {
+            background-color: #2980b9;
+        }
+
+        .side-menu .collapsible summary {
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .side-menu .preprocessing-option,
+        .side-menu .smoothing-control,
+        .side-menu .thresholding-control,
+        .side-menu .edge-detection-control,
+        .side-menu .roi-option {
+            margin-bottom: 20px;
+        }
+
+        /* Overlay and Menu Toggle */
         .overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
-            display: none;
-            z-index: 1000;
+            background-color: rgba(0,0,0,0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+            z-index: 999;
         }
+
         .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .menu-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 30px;
+            height: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            cursor: pointer;
+            z-index: 1001;
+        }
+
+        .menu-toggle span {
             display: block;
+            height: 4px;
+            background-color: #333;
+            border-radius: 2px;
+            transition: all 0.3s ease;
         }
 
-        #container.side-menu-open {
-            margin-left: 300px;
-            transition: margin-left 0.3s ease;
-        }
-        @media (max-width: 768px) {
-            #container.side-menu-open {
-                margin-left: 0;
-            }
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
         }
 
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background-color: #ccc;
+            border-radius: 12px;
+            margin-left: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background-color: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        input[type="checkbox"]:checked + .toggle-switch {
+            background-color: #2cb67d;
+        }
+
+        input[type="checkbox"]:checked + .toggle-switch::after {
+            transform: translateX(26px);
+        }
+
+        /* Main Container */
         #container {
             flex: 1;
-            position: relative;
+            margin-left: 0;
+            transition: margin-left 0.3s ease;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            padding-bottom: 240px;
-            overflow: visible;
-            transition: margin-left 0.3s ease;
-            min-height: 100vh;
-            width: 100%;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
         }
 
+        .side-menu-open #container {
+            margin-left: 300px;
+        }
+
+        /* Video Wrapper */
         #videoWrapper {
             position: relative;
-            margin-top: 20px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
+            width: 640px;
+            height: 480px;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         #video {
-            width: 90%;
-            max-width: 500px;
-            border-radius: 12px;
-            background: #000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            position: relative;
-            z-index: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         #overlay {
             position: absolute;
-            width: 60%;
-            height: 150px;
-            border: 3px dashed #00b4d8;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 2px solid #00b4d8;
             border-radius: 8px;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            cursor: pointer;
-            transition: border-color 0.3s ease;
-            z-index: 3;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 2;
         }
 
-        /* Updated debugCanvas Styles */
+        /* Debug Canvas */
         #debugCanvas {
             position: absolute;
             top: 0;
@@ -292,99 +232,111 @@
             width: 100%;
             height: 100%;
             border-radius: 8px;
-            visibility: hidden; /* Changed from display: none to visibility: hidden */
-            z-index: 4; /* Higher z-index to appear above overlay if needed */
+            visibility: hidden; /* Initially hidden */
+            z-index: 3;
             pointer-events: none;
-            border: none; /* Remove border if overlay already has one */
-            background: transparent; /* Make background transparent to see the overlay */
-            /* Removed display: none; */
+            background: transparent;
         }
 
+        /* Focus Indicator */
         #focusIndicator {
             position: absolute;
-            top: 50%;
+            top: 10px;
             left: 50%;
-            transform: translate(-50%, -110%);
+            transform: translateX(-50%);
             background-color: rgba(0,0,0,0.75);
             color: #fff;
             padding: 6px 12px;
             border-radius: 4px;
             font-size: 14px;
             display: none;
-            z-index: 10;
+            z-index: 4;
         }
 
+        /* Controls Section */
         #controls {
             margin-top: 20px;
             width: 90%;
-            max-width: 500px;
+            max-width: 700px;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
+
         .buttons-container {
             display: flex;
-            gap: 30px;
+            gap: 20px;
             width: 100%;
             justify-content: center;
+            margin-bottom: 20px;
         }
+
         #start-button, #stop-button, #restart-button, #load-config-button, #save-config-button {
-            padding: 6px 12px;
-            font-size: 12px;
+            padding: 10px 20px;
+            font-size: 16px;
             cursor: pointer;
             border: none;
             border-radius: 4px;
             font-weight: 600;
             transition: background-color 0.3s ease, opacity 0.3s ease;
-            width: 140px;
+            width: 150px;
             white-space: nowrap;
         }
+
         #start-button {
             background-color: #2cb67d;
             color: #fff;
         }
+
         #start-button:hover:not(:disabled) {
             background-color: #249763;
         }
+
         #start-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+
         #stop-button {
             background-color: #d00000;
             color: #fff;
         }
+
         #stop-button:hover:not(:disabled) {
             background-color: #b20000;
         }
+
         #stop-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+
         #restart-button {
             background-color: #f39c12;
             color: #fff;
-            width: 140px;
-            margin-top: 20px;
             display: none;
         }
+
         #restart-button:hover:not(:disabled) {
             background-color: #e67e22;
         }
+
         #restart-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+
         #load-config-button, #save-config-button {
             background-color: #3498db;
             color: #fff;
         }
+
         #load-config-button:hover, #save-config-button:hover {
             background-color: #2980b9;
         }
 
+        /* OCR Output */
         #output {
-            margin-top: 20px;
             width: 100%;
             height: 150px;
             padding: 12px;
@@ -395,15 +347,16 @@
             background-color: #fff;
             line-height: 1.6;
             color: #333;
-            font-family: 'Inter', sans-serif;
             transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
         }
+
         body.dark-theme #output {
             background-color: #1e1e1e;
             border: 1px solid #555;
             color: #e0e0e0;
         }
 
+        /* Error Message */
         #errorMsg {
             position: fixed;
             top: 20px;
@@ -420,20 +373,7 @@
             font-size: 16px;
         }
 
-        #webglCanvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 8px;
-            visibility: hidden; /* Changed from display: none to visibility: hidden */
-            z-index: 2;
-            pointer-events: none;
-            border: none;
-            background: transparent;
-        }
-
+        /* Debug Console and Controls */
         #debugConsole {
             position: fixed;
             bottom: 0;
@@ -475,6 +415,7 @@
             display: none;
             z-index: 998;
         }
+
         #save-logs-button {
             background: #0d6efd;
             border: none;
@@ -484,7 +425,9 @@
             font-size: 16px;
             cursor: pointer;
             font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
         }
+
         #save-logs-button:hover {
             background: #0b5ed7;
         }
@@ -504,19 +447,10 @@
             background-color: #5a0bad;
         }
 
+        /* Responsive Design */
         @media (max-width: 768px) {
-            .menu-toggle {
-                width: 25px;
-                height: 20px;
-            }
-            .menu-toggle span {
-                height: 3px;
-            }
             .side-menu {
-                padding: 15px;
-            }
-            #debugCanvas {
-                /* Removed height constraint */
+                width: 250px;
             }
             #debugConsole {
                 height: 150px;
@@ -526,12 +460,12 @@
                 bottom: 150px;
             }
             .buttons-container {
-                gap: 25px;
+                gap: 15px;
             }
             #start-button, #stop-button, #restart-button, #load-config-button, #save-config-button {
-                padding: 12px 20px;
-                font-size: 16px;
-                width: 140px;
+                padding: 8px 16px;
+                font-size: 14px;
+                width: 120px;
             }
             #output {
                 font-size: 18px;
@@ -549,63 +483,19 @@
 
         @media (max-width: 480px) {
             .buttons-container {
-                gap: 15px;
+                flex-direction: column;
+                gap: 10px;
             }
-            #start-button, #stop-button, #restart-button, #load-config-button, #save-config-button {
-                padding: 10px 18px;
-                font-size: 14px;
-                width: 120px;
+            #videoWrapper {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 4 / 3;
             }
-            #output {
-                font-size: 16px;
-                height: 160px;
+            #debugCanvas {
+                /* Ensures canvas scales correctly on small screens */
+                width: 100% !important;
+                height: 100% !important;
             }
-            #errorMsg {
-                font-size: 16px;
-                padding: 12px 24px;
-            }
-            #resolution-select, #camera-select, #workers-select, #frame-skipping-select, #frequency-select, #confidence-threshold-input, #config-select {
-                font-size: 16px;
-                padding: 10px;
-            }
-        }
-
-        .preprocessing-option {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 10px;
-        }
-        .preprocessing-option label {
-            margin-bottom: 5px;
-            font-weight: 600;
-        }
-        .preprocessing-option input[type="checkbox"] {
-            margin-right: 10px;
-        }
-        .preprocessing-option-slider {
-            width: 100%;
-            margin-top: 5px;
-        }
-
-        /* Additional Styles for Configuration Management Buttons */
-        #load-config-button, #save-config-button {
-            padding: 8px 16px;
-            font-size: 14px;
-            cursor: pointer;
-            border: none;
-            border-radius: 4px;
-            font-weight: 600;
-            background-color: #3498db;
-            color: #fff;
-            transition: background-color 0.3s ease;
-        }
-        #load-config-button:hover, #save-config-button:hover {
-            background-color: #2980b9;
-        }
-
-        /* Lightbulb Indicator Styles */
-        #lightbulbIndicator path {
-            transition: fill 0.3s ease;
         }
 
         /* ROI Control Styles */
@@ -623,53 +513,37 @@
             margin-top: 5px;
         }
 
-        /* New Controls for Smoothing, Thresholding, and Edge Detection */
-        /* Smoothing Control */
-        .smoothing-control {
+        /* Preprocessing Controls */
+        .preprocessing-option {
             display: flex;
             flex-direction: column;
             margin-bottom: 10px;
         }
+        .preprocessing-option label {
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .preprocessing-option input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        .preprocessing-option-slider {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        /* Smoothing Control */
         .smoothing-control label {
             margin-bottom: 5px;
             font-weight: 600;
         }
-        .smoothing-control input[type="range"] {
-            width: 100%;
-            margin-top: 5px;
-        }
-        .smoothing-control .value-display {
-            align-self: flex-end;
-            font-size: 14px;
-            margin-top: 5px;
-        }
 
         /* Thresholding Control */
-        .thresholding-control {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 10px;
-        }
         .thresholding-control label {
             margin-bottom: 5px;
             font-weight: 600;
         }
-        .thresholding-control input[type="range"] {
-            width: 100%;
-            margin-top: 5px;
-        }
-        .thresholding-control .value-display {
-            align-self: flex-end;
-            font-size: 14px;
-            margin-top: 5px;
-        }
 
         /* Edge Detection Control */
-        .edge-detection-control {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 10px;
-        }
         .edge-detection-control label {
             margin-bottom: 5px;
             font-weight: 600;
@@ -701,19 +575,43 @@
             font-size: 14px;
             margin-top: 5px;
         }
+
+        /* Lightbulb Indicator */
+        #lightbulbIndicator {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 4;
+            display: none;
+            width: 50px;
+            height: 50px;
+        }
+
+        /* Lighting Feedback */
+        #lightingFeedback {
+            position: absolute;
+            bottom: 70px;
+            right: 10px;
+            z-index: 4;
+            color: #fff;
+            font-size: 14px;
+            display: none;
+            background-color: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
-    <div class="side-menu" id="side-menu">
-        <div id="fpsCounter" aria-live="polite">FPS: 0</div>
-
+    <!-- Side Menu -->
+    <div class="side-menu" id="side-menu" aria-label="Settings Menu">
         <div class="menu-content">
             <h2>Settings</h2>
             <!-- Hardware Settings -->
             <details class="collapsible" open>
                 <summary>Hardware</summary>
                 <div>
-                    <label for="resolution-select">Resolutions:</label>
+                    <label for="resolution-select">Resolution:</label>
                     <select id="resolution-select" aria-label="Select Resolution">
                         <option value="">Select Resolution</option>
                         <option value="320x240">320 x 240</option>
@@ -731,9 +629,10 @@
                     </select>
                 </div>
                 <div>
-                    <label for="camera-select">Cameras:</label>
+                    <label for="camera-select">Camera:</label>
                     <select id="camera-select" aria-label="Select Camera">
                         <option value="">Select Camera</option>
+                        <!-- Dynamically populated -->
                     </select>
                 </div>
                 <div>
@@ -769,7 +668,7 @@
                 <div>
                     <label for="frequency-select">OCR Frequency (Hz):</label>
                     <select id="frequency-select" aria-label="Select OCR Frequency">
-                       <option value="1">1 Hz</option>
+                        <option value="1">1 Hz</option>
                         <option value="2">2 Hz</option>
                         <option value="3">3 Hz</option>
                         <option value="4">4 Hz</option>
@@ -784,7 +683,7 @@
                     </select>
                 </div>
                 <div>
-                    <label for="confidence-threshold-input">Worker Confidence Threshold:</label>
+                    <label for="confidence-threshold-input">Worker Confidence Threshold (%):</label>
                     <input type="number" id="confidence-threshold-input" min="1" max="100" value="60" aria-label="Confidence Threshold">
                 </div>
             </details>
@@ -792,89 +691,89 @@
             <!-- WebGL Preprocessing Settings -->
             <details class="collapsible" open>
                 <summary>WebGL Preprocessing</summary>
-                <content>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableGrayscale">Enable Grayscale</label>
-                        <input type="range" id="grayscaleSlider" class="preprocessing-option-slider" min="0" max="100" value="100" aria-label="Grayscale Slider">
-                        <span id="grayscaleValue" class="value-display">100</span>
-                    </div>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableDenoise">Enable Denoise</label>
-                        <input type="range" id="denoiseSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Denoise Slider">
-                        <span id="denoiseValue" class="value-display">50</span>
-                    </div>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableSharpen">Enable Sharpening</label>
-                        <input type="range" id="sharpenSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Sharpen Slider">
-                        <span id="sharpenValue" class="value-display">50</span>
-                    </div>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableBrightness">Enable Brightness</label>
-                        <input type="range" id="brightnessSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Brightness Slider">
-                        <span id="brightnessValue" class="value-display">50</span>
-                    </div>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableContrast">Enable Contrast</label>
-                        <input type="range" id="contrastSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Contrast Slider">
-                        <span id="contrastValue" class="value-display">50</span>
-                    </div>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableClarity">Enable Clarity</label>
-                        <input type="range" id="claritySlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Clarity Slider">
-                        <span id="clarityValue" class="value-display">50</span>
-                    </div>
-                    <div class="preprocessing-option">
-                        <label><input type="checkbox" id="enableHighlights">Enable Highlights</label>
-                        <input type="range" id="highlightsSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Highlights Slider">
-                        <span id="highlightsValue" class="value-display">50</span>
-                    </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableGrayscale">Enable Grayscale</label>
+                    <input type="range" id="grayscaleSlider" class="preprocessing-option-slider" min="0" max="100" value="100" aria-label="Grayscale Slider">
+                    <span id="grayscaleValue" class="value-display">100%</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableThresholding">Enable Thresholding</label>
+                    <input type="range" id="thresholdSlider" class="preprocessing-option-slider" min="0" max="255" value="128" aria-label="Thresholding Slider">
+                    <span id="thresholdValue" class="value-display">128</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableDenoise">Enable Denoise</label>
+                    <input type="range" id="denoiseSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Denoise Slider">
+                    <span id="denoiseValue" class="value-display">50</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableSharpen">Enable Sharpening</label>
+                    <input type="range" id="sharpenSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Sharpen Slider">
+                    <span id="sharpenValue" class="value-display">50</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableBrightness">Enable Brightness</label>
+                    <input type="range" id="brightnessSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Brightness Slider">
+                    <span id="brightnessValue" class="value-display">50%</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableContrast">Enable Contrast</label>
+                    <input type="range" id="contrastSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Contrast Slider">
+                    <span id="contrastValue" class="value-display">50%</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableClarity">Enable Clarity</label>
+                    <input type="range" id="claritySlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Clarity Slider">
+                    <span id="clarityValue" class="value-display">50%</span>
+                </div>
+                <div class="preprocessing-option">
+                    <label><input type="checkbox" id="enableHighlights">Enable Highlights</label>
+                    <input type="range" id="highlightsSlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Highlights Slider">
+                    <span id="highlightsValue" class="value-display">50%</span>
+                </div>
 
-                    <!-- New Smoothing Control -->
-                    <div class="smoothing-control">
-                        <label><input type="checkbox" id="enableSmoothing">Enable Smoothing</label>
-                        <input type="range" id="smoothingSlider" class="preprocessing-option-slider" min="0" max="100" value="0" aria-label="Smoothing Slider" disabled>
-                        <span id="smoothingValue" class="value-display">0</span>
-                    </div>
+                <!-- Smoothing Control -->
+                <div class="smoothing-control">
+                    <label><input type="checkbox" id="enableSmoothing">Enable Smoothing</label>
+                    <input type="range" id="smoothingSlider" class="preprocessing-option-slider" min="0" max="100" value="0" aria-label="Smoothing Slider" disabled>
+                    <span id="smoothingValue" class="value-display">0%</span>
+                </div>
 
-                    <!-- New Thresholding Control -->
-                    <div class="thresholding-control">
-                        <label><input type="checkbox" id="enableThresholding">Enable Thresholding</label>
-                        <input type="range" id="thresholdSlider" class="preprocessing-option-slider" min="0" max="255" value="128" aria-label="Thresholding Slider" disabled>
-                        <span id="thresholdValue" class="value-display">128</span>
-                    </div>
+                <!-- Thresholding Control -->
+                <div class="thresholding-control">
+                    <label><input type="checkbox" id="enableThresholding">Enable Thresholding</label>
+                    <input type="range" id="thresholdSlider" class="preprocessing-option-slider" min="0" max="255" value="128" aria-label="Thresholding Slider" disabled>
+                    <span id="thresholdValue" class="value-display">128</span>
+                </div>
 
-                    <!-- New Edge Detection Control -->
-                    <div class="edge-detection-control">
-                        <label>Edge Detection</label>
-                        <div class="edge-presets">
-                            <input type="checkbox" id="sobelCheckbox" name="edgeAlgorithm" value="sobel">
-                            <label for="sobelCheckbox">Sobel</label>
-                            <!-- Canny removed as per review -->
-                        </div>
-                        <div class="edge-intensity-control">
-                            <label for="edgeIntensitySlider">Edge Intensity</label>
-                            <input type="range" id="edgeIntensitySlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Edge Intensity Slider">
-                            <span id="edgeIntensityValue" class="value-display">50</span>
-                        </div>
+                <!-- Edge Detection Control -->
+                <div class="edge-detection-control">
+                    <label>Edge Detection</label>
+                    <div class="edge-presets">
+                        <input type="checkbox" id="sobelCheckbox" name="edgeAlgorithm" value="sobel">
+                        <label for="sobelCheckbox">Sobel</label>
                     </div>
-                </content>
+                    <div class="edge-intensity-control">
+                        <label for="edgeIntensitySlider">Edge Intensity</label>
+                        <input type="range" id="edgeIntensitySlider" class="preprocessing-option-slider" min="0" max="100" value="50" aria-label="Edge Intensity Slider">
+                        <span id="edgeIntensityValue" class="value-display">50%</span>
+                    </div>
+                </div>
             </details>
 
             <!-- ROI Settings -->
             <details class="collapsible" open>
                 <summary>ROI</summary>
-                <content>
-                    <div class="roi-option">
-                        <label for="roi-width-slider">ROI Width (%):</label>
-                        <input type="range" id="roi-width-slider" class="preprocessing-option-slider" min="10" max="100" value="60" aria-label="ROI Width Slider">
-                        <span id="roiWidthValue" class="value-display">60%</span>
-                    </div>
-                    <div class="roi-option">
-                        <label for="roi-height-slider">ROI Height (%):</label>
-                        <input type="range" id="roi-height-slider" class="preprocessing-option-slider" min="10" max="100" value="25" aria-label="ROI Height Slider">
-                        <span id="roiHeightValue" class="value-display">25%</span>
-                    </div>
-                </content>
+                <div class="roi-option">
+                    <label for="roi-width-slider">ROI Width (%):</label>
+                    <input type="range" id="roi-width-slider" class="preprocessing-option-slider" min="10" max="100" value="60" aria-label="ROI Width Slider">
+                    <span id="roiWidthValue" class="value-display">60%</span>
+                </div>
+                <div class="roi-option">
+                    <label for="roi-height-slider">ROI Height (%):</label>
+                    <input type="range" id="roi-height-slider" class="preprocessing-option-slider" min="10" max="100" value="25" aria-label="ROI Height Slider">
+                    <span id="roiHeightValue" class="value-display">25%</span>
+                </div>
             </details>
 
             <!-- Configuration Management Section -->
@@ -884,6 +783,7 @@
                     <label for="config-select">Load Configuration:</label>
                     <select id="config-select" aria-label="Select Configuration">
                         <option value="">Select Config</option>
+                        <!-- Dynamically populated -->
                     </select>
                 </div>
                 <div>
@@ -894,21 +794,23 @@
                 </div>
             </details>
         </div>
-
-        <button id="debug-button" class="debug-button" aria-label="Toggle Debugging">Show Debug</button>
-
     </div>
 
+    <!-- Menu Overlay -->
     <div class="overlay" id="menu-overlay" tabindex="-1" aria-hidden="true"></div>
+
+    <!-- Menu Toggle Button -->
     <div class="menu-toggle" id="menu-toggle" aria-label="Toggle Menu" aria-expanded="false" role="button" tabindex="0">
         <span></span><span></span><span></span>
     </div>
 
+    <!-- Theme Toggle -->
     <div class="theme-toggle">
         <label class="toggle-label" for="theme-checkbox">
             <input type="checkbox" id="theme-checkbox" aria-label="Toggle Dark Theme">
             <div class="toggle-switch">
                 <span class="toggle-icon sun-icon" aria-hidden="true">
+                    <!-- Sun Icon SVG -->
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 64 64" fill="#FFD700" role="img" aria-label="Sun Icon">
                         <title>Sun Icon</title>
                         <circle cx="32" cy="32" r="12"/>
@@ -929,23 +831,32 @@
         </label>
     </div>
 
+    <!-- Error Message -->
     <div id="errorMsg" role="alert" aria-live="assertive"></div>
+
+    <!-- Main Content Container -->
     <div id="container">
+        <!-- Video Wrapper -->
         <div id="videoWrapper">
             <video id="video" playsinline aria-label="Video Stream"></video>
             <div id="overlay" aria-hidden="true">
                 <canvas id="webglCanvas"></canvas>
-                <canvas id="debugCanvas"></canvas> <!-- Moved inside overlay -->
+                <canvas id="debugCanvas"></canvas>
             </div>
             <div id="focusIndicator" aria-live="polite">Processing...</div>
 
             <!-- Lightbulb Indicator -->
-            <svg id="lightbulbIndicator" xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 64 64" style="position: absolute; bottom: 10px; right: 10px; z-index: 4; display: none;" aria-label="Lighting Indicator" role="img">
+            <svg id="lightbulbIndicator" xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 64 64" style="display: none;" aria-label="Lighting Indicator" role="img">
                 <title>Lighting Indicator</title>
                 <path d="M32 2C20.954 2 12 10.954 12 22c0 6.627 4.567 12.212 10.793 13.775V38c0 3.314 2.686 6 6 6h4c3.314 0 6-2.686 6-6v-2.225C47.433 34.212 52 28.627 52 22 52 10.954 43.046 2 32 2z" fill="#00FF00" stroke="#000" stroke-width="2"/>
                 <path d="M32 58c-2.209 0-4-1.791-4-4h8c0 2.209-1.791 4-4 4z" fill="#00FF00" stroke="#000" stroke-width="2"/>
             </svg>
+
+            <!-- Lighting Feedback -->
+            <div id="lightingFeedback">Good Lighting</div>
         </div>
+
+        <!-- Controls Section -->
         <div id="controls">
             <div class="buttons-container">
                 <button id="start-button" aria-label="Start Scanner">Start Scanner</button>
@@ -954,13 +865,15 @@
             <button id="restart-button" aria-label="Restart Scanner">Restart Scanner</button>
             <textarea id="output" placeholder="Extracted text will appear here..." readonly aria-label="OCR Output"></textarea>
         </div>
-        <!-- Removed the original debugCanvas from here -->
     </div>
+
+    <!-- Debug Console and Controls -->
     <div id="debugControls">
         <button id="save-logs-button" aria-label="Save Logs">Save Logs</button>
     </div>
     <div id="debugConsole" aria-label="Debug Console" role="log"></div>
 
+    <!-- Scripts -->
     <script>
         /* Performance-Focused Enhancements and Initialization */
 
@@ -983,7 +896,7 @@
         let confidenceThreshold = 60;
         let lastOcrTime = 0;
         let frameCounter = 0;
-        
+
         // Adaptive frame skipping variables
         let targetFrameTime = 1000 / 30; // target ~30 fps processing
         let maxSkipping = 60; 
@@ -1021,6 +934,9 @@
         const enableGrayscale = document.getElementById('enableGrayscale');
         const grayscaleSlider = document.getElementById('grayscaleSlider');
         const grayscaleValue = document.getElementById('grayscaleValue');
+        const enableThresholding = document.getElementById('enableThresholding');
+        const thresholdSlider = document.getElementById('thresholdSlider');
+        const thresholdValue = document.getElementById('thresholdValue');
         const enableDenoise = document.getElementById('enableDenoise');
         const denoiseSlider = document.getElementById('denoiseSlider');
         const denoiseValue = document.getElementById('denoiseValue');
@@ -1040,15 +956,10 @@
         const highlightsSlider = document.getElementById('highlightsSlider');
         const highlightsValue = document.getElementById('highlightsValue');
 
-        // New Controls for Smoothing and Thresholding
+        // New Controls for Smoothing and Edge Detection
         const enableSmoothing = document.getElementById('enableSmoothing');
         const smoothingSlider = document.getElementById('smoothingSlider');
         const smoothingValue = document.getElementById('smoothingValue');
-        const enableThresholding = document.getElementById('enableThresholding');
-        const thresholdSlider = document.getElementById('thresholdSlider');
-        const thresholdValue = document.getElementById('thresholdValue');
-
-        // Edge Detection Controls
         const sobelCheckbox = document.getElementById('sobelCheckbox');
         const edgeIntensitySlider = document.getElementById('edgeIntensitySlider');
         const edgeIntensityValue = document.getElementById('edgeIntensityValue');
@@ -1066,22 +977,12 @@
         const videoCanvas = document.createElement('canvas');
         const roiCanvas = document.createElement('canvas');
         const scaledCanvas = document.createElement('canvas');
-        
+
         // Lightbulb Indicator Elements
         const lightbulbIndicator = document.getElementById('lightbulbIndicator');
 
-        // Lightbulb Feedback Text (Optional)
-        const lightingFeedback = document.createElement('div');
-        lightingFeedback.id = 'lightingFeedback';
-        lightingFeedback.style.position = 'absolute';
-        lightingFeedback.style.bottom = '70px';
-        lightingFeedback.style.right = '10px';
-        lightingFeedback.style.zIndex = '4';
-        lightingFeedback.style.color = '#fff';
-        lightingFeedback.style.fontSize = '14px';
-        lightingFeedback.style.display = 'none';
-        lightingFeedback.innerText = 'Good Lighting';
-        document.getElementById('videoWrapper').appendChild(lightingFeedback);
+        // Lighting Feedback Text
+        const lightingFeedback = document.getElementById('lightingFeedback');
 
         // Device Pixel Density
         const pixelDensity = window.devicePixelRatio || 1;
@@ -1125,26 +1026,7 @@
             }
         }
 
-        // Dynamic worker scaling (basic approach)
-        function adjustWorkers() {
-            const maxWorkers = parseInt(workersSelect.value);
-            if (ocrFrequency > 5 && workers.length < maxWorkers) {
-                // Add a worker
-                initializeTesseract(workers.length + 1);
-            } else if (ocrFrequency < 2 && workers.length > 1) {
-                // Remove a worker
-                if (workers.length > 1) {
-                    const workerToTerminate = workers.pop();
-                    workerToTerminate.terminate().then(() => {
-                        console.log('Tesseract worker terminated.');
-                    }).catch(err => {
-                        console.error('Error terminating worker:', err);
-                    });
-                }
-            }
-        }
-
-        // Initialize WebGL if needed
+        // Initialize WebGL
         function initWebGL() {
             if (glInitialized || useCanvas2DPreprocessing) return;
             const webglCanvas = document.getElementById('webglCanvas');
@@ -1156,7 +1038,7 @@
                 return;
             }
 
-            // Vertex and Fragment Shaders (with conditions)
+            // Vertex and Fragment Shaders
             const vertexShaderSource = `
                 attribute vec2 a_position;
                 attribute vec2 a_texCoord;
@@ -1174,6 +1056,8 @@
                 uniform sampler2D u_texture;
                 uniform bool u_grayscaleEnabled;
                 uniform float u_grayscaleAmount;
+                uniform bool u_thresholdingEnabled;
+                uniform int u_thresholdValue;
                 uniform bool u_denoiseEnabled;
                 uniform float u_denoiseAmount;
                 uniform bool u_sharpenEnabled;
@@ -1190,8 +1074,6 @@
                 // New Uniforms for Smoothing and Thresholding
                 uniform bool u_smoothingEnabled;
                 uniform int u_smoothingAmount;
-                uniform bool u_thresholdingEnabled;
-                uniform int u_thresholdValue;
 
                 // Edge Detection Uniforms
                 uniform int u_edgeDetection; // 0: None, 1: Sobel
@@ -1202,6 +1084,7 @@
                 // Dynamic step size based on resolution
                 uniform float u_stepSize;
 
+                // Denoise Function
                 vec4 denoise(sampler2D tex, vec2 uv, float strength) {
                     float offset = u_stepSize * strength;
                     vec4 center = texture2D(tex, uv);
@@ -1213,6 +1096,7 @@
                     return sum / 5.0; 
                 }
 
+                // Sharpen Function
                 vec4 sharpen(sampler2D tex, vec2 uv, float strength) {
                     float offset = u_stepSize * strength;
                     vec4 center = texture2D(tex, uv);
@@ -1226,18 +1110,21 @@
                     return center*(1.0+a)-blurColor*a;
                 }
 
+                // Brightness Adjustment
                 vec4 applyBrightness(vec4 color, float amount) {
                     float factor = (amount - 50.0)/50.0;
                     color.rgb += factor; 
                     return color;
                 }
 
+                // Contrast Adjustment
                 vec4 applyContrast(vec4 color, float amount) {
                     float factor = amount/50.0;
                     color.rgb = (color.rgb-0.5)*factor+0.5;
                     return color;
                 }
 
+                // Clarity Adjustment
                 vec4 applyClarity(vec4 color, float amount) {
                     float factor = (amount - 50.0)/50.0;
                     color.r = (color.r-0.5)*(1.0+factor)+0.5;
@@ -1246,6 +1133,7 @@
                     return color;
                 }
 
+                // Highlights Adjustment
                 vec4 applyHighlights(vec4 color, float amount) {
                     float factor = (amount - 50.0)/50.0;
                     if(color.r > 0.5) color.r = color.r + factor*(color.r-0.5);
@@ -1254,7 +1142,7 @@
                     return color;
                 }
 
-                // New Function for Smoothing
+                // Smoothing Function
                 vec4 applySmoothing(sampler2D tex, vec2 uv, int amount) {
                     if (!u_smoothingEnabled || amount <= 0) return texture2D(tex, uv);
                     float blurSize = float(amount) / 100.0;
@@ -1266,7 +1154,7 @@
                     return color / 5.0;
                 }
 
-                // Function to apply Sobel operator
+                // Sobel Edge Detection Function
                 vec3 applySobel(sampler2D image, vec2 coord, float intensity) {
                     float edgeX = 0.0;
                     float edgeY = 0.0;
@@ -1301,10 +1189,10 @@
                 void main(void) {
                     vec4 color = texture2D(u_texture, v_texCoord);
 
-                    // Apply grayscale if enabled
+                    // Apply grayscale if enabled with adjustable amount
                     if (u_grayscaleEnabled) {
                         float grayScale = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                        color = vec4(vec3(grayScale), color.a); // Fully apply Grayscale
+                        color = mix(color, vec4(vec3(grayScale), color.a), u_grayscaleAmount);
                     }
 
                     // Apply thresholding if enabled
@@ -1356,8 +1244,7 @@
                         if (u_edgeDetection == 1) {
                             edges += applySobel(u_texture, v_texCoord, float(u_edgeIntensity));
                         }
-                        // Canny removed
-                        // Combine edges with the thresholded image
+                        // Combine edges with the image
                         float edgeStrength = (edges.r + edges.g + edges.b) / 3.0;
                         if (edgeStrength > 0.5) {
                             color = vec4(1.0);
@@ -1373,8 +1260,10 @@
                 gl.shaderSource(shader, source);
                 gl.compileShader(shader);
                 if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                    console.error('Shader error:', gl.getShaderInfoLog(shader));
-                    showError('Shader compilation failed. Please check console for details.');
+                    const errorMsg = gl.getShaderInfoLog(shader);
+                    console.error('Shader compilation error:', errorMsg);
+                    showError(`Shader compilation failed: ${errorMsg}`);
+                    return null; // Return null to handle in calling function
                 }
                 return shader;
             }
@@ -1382,15 +1271,20 @@
             const vs = compileShader(gl.VERTEX_SHADER, vertexShaderSource);
             const fs = compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
 
+            if (!vs || !fs) {
+                handleWebGLFailure();
+                return;
+            }
+
             glProgram = gl.createProgram();
             gl.attachShader(glProgram, vs);
             gl.attachShader(glProgram, fs);
             gl.linkProgram(glProgram);
             if (!gl.getProgramParameter(glProgram, gl.LINK_STATUS)) {
-                console.error('Program link error:', gl.getProgramInfoLog(glProgram));
+                const errorMsg = gl.getProgramInfoLog(glProgram);
+                console.error('Program link error:', errorMsg);
                 showError('Failed to link WebGL program. Falling back to Canvas 2D preprocessing.');
-                useCanvas2DPreprocessing = true;
-                initializeCanvas2DPreprocessing();
+                handleWebGLFailure();
                 return;
             }
             gl.useProgram(glProgram);
@@ -1427,6 +1321,8 @@
             window.uLocations = {
                 grayscaleEnabled: gl.getUniformLocation(glProgram, "u_grayscaleEnabled"),
                 grayscaleAmount: gl.getUniformLocation(glProgram, "u_grayscaleAmount"),
+                thresholdingEnabled: gl.getUniformLocation(glProgram, "u_thresholdingEnabled"),
+                thresholdValue: gl.getUniformLocation(glProgram, "u_thresholdValue"),
                 denoiseEnabled: gl.getUniformLocation(glProgram, "u_denoiseEnabled"),
                 denoiseAmount: gl.getUniformLocation(glProgram, "u_denoiseAmount"),
                 sharpenEnabled: gl.getUniformLocation(glProgram, "u_sharpenEnabled"),
@@ -1443,8 +1339,6 @@
                 // New Uniforms for Smoothing and Thresholding
                 smoothingEnabled: gl.getUniformLocation(glProgram, "u_smoothingEnabled"),
                 smoothingAmount: gl.getUniformLocation(glProgram, "u_smoothingAmount"),
-                thresholdingEnabled: gl.getUniformLocation(glProgram, "u_thresholdingEnabled"),
-                thresholdValue: gl.getUniformLocation(glProgram, "u_thresholdValue"),
 
                 // Edge Detection Uniforms
                 edgeDetection: gl.getUniformLocation(glProgram, "u_edgeDetection"),
@@ -1453,6 +1347,7 @@
                 // Dynamic step size
                 stepSize: gl.getUniformLocation(glProgram, "u_stepSize"),
 
+                // High Performance Device Flag
                 isHighPerformanceDevice: gl.getUniformLocation(glProgram, "u_isHighPerformanceDevice")
             };
 
@@ -1462,14 +1357,24 @@
             gl.clearColor(0.0,0.0,0.0,1.0);
             glInitialized = true;
             console.log('WebGL initialized successfully.');
+
+            // Initialize any additional WebGL settings if necessary
         }
 
+        // Function to handle WebGL failure
+        function handleWebGLFailure() {
+            showError('WebGL preprocessing failed. Canvas 2D preprocessing has been enabled.');
+            useCanvas2DPreprocessing = true;
+            initializeCanvas2DPreprocessing();
+        }
+
+        // Canvas 2D Preprocessing (Fallback)
         function initializeCanvas2DPreprocessing() {
-            // Implement Canvas 2D preprocessing here
-            // Placeholder for future implementation
             console.log('Canvas 2D preprocessing initialized.');
+            // Implement Canvas 2D preprocessing logic if needed
         }
 
+        // Function to display error messages
         function showError(message) {
             console.error(message);
             errorMsg.innerText = message;
@@ -1480,6 +1385,7 @@
             }, 5000);
         }
 
+        // Function to initialize the camera
         async function initCamera(resolution = null, cameraId = null) {
             try {
                 const videoConstraints = {};
@@ -1517,28 +1423,13 @@
             }
         }
 
-        function getSelectedResolution() {
-            const resolutionSelect = document.getElementById('resolution-select');
-            const val = resolutionSelect.value;
-            if (!val) return null;
-            const [width, height] = val.split('x').map(Number);
-            return `${width}x${height}`;
-        }
-
         // Function to calculate average brightness
         function calculateAverageBrightness(canvas) {
             const ctx = canvas.getContext('2d');
-            // Optionally, resize for faster processing
-            const tempCanvas = document.createElement('canvas');
-            const scaleFactor = 0.25; // Reduce to 25% of original size
-            tempCanvas.width = Math.floor(canvas.width * scaleFactor);
-            tempCanvas.height = Math.floor(canvas.height * scaleFactor);
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
-            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             let totalLuminance = 0;
-            const pixelCount = tempCanvas.width * tempCanvas.height;
+            const pixelCount = canvas.width * canvas.height;
 
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
@@ -1574,71 +1465,7 @@
             }
         }
 
-        async function startScanning() {
-            if (scanning) return;
-            startButton.disabled = true;
-            stopButton.disabled = true;
-            restartButton.style.display = 'none';
-            startButton.innerText = 'Starting...';
-            currentResolution = getSelectedResolution();
-            selectedCameraId = document.getElementById('camera-select').value || null;
-            await initCamera(currentResolution, selectedCameraId);
-
-            // Adjust workers based on pixel density
-            adjustWorkersBasedOnPixelDensity();
-
-            // Lazy init workers if needed
-            const workersCount = parseInt(workersSelect.value);
-            if (!isTesseractInitialized) {
-                await initializeTesseract(workersCount);
-            }
-
-            frameSkipping = parseInt(frameSkippingSelect.value);
-            ocrFrequency = parseFloat(frequencySelect.value);
-            confidenceThreshold = parseInt(confidenceThresholdInput.value);
-            updateOcrInfo();
-
-            // Init WebGL if not done yet and fallback is not set
-            if (!glInitialized && !useCanvas2DPreprocessing) {
-                initWebGL();
-            }
-
-            // Initialize ROI overlay based on current sliders
-            updateROIOverlay();
-
-            scanning = true;
-            startButton.disabled = true;
-            stopButton.disabled = false;
-            startButton.innerText = 'Scanning...';
-            output.value = '';
-
-            // Show debug elements if they are active
-            if (debugCanvas.style.visibility === 'visible') {
-                lightbulbIndicator.style.display = 'block';
-                lightingFeedback.style.display = 'block';
-            }
-
-            requestAnimationFrame(processFrame);
-        }
-
-        async function stopScanning() {
-            if (!scanning) return;
-            scanning = false;
-            startButton.disabled = false;
-            stopButton.disabled = true;
-            restartButton.style.display = 'block';
-            startButton.innerText = 'Start Scanner';
-            roiOverlay.style.borderColor = '#00b4d8';
-            if (stream) {
-                stream.getTracks().forEach(t => t.stop());
-                stream = null;
-            }
-            debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
-            lightbulbIndicator.style.display = 'none';
-            lightingFeedback.style.display = 'none';
-            console.log('Scanning stopped.');
-        }
-
+        // Function to perform OCR
         async function performOCR(blob) {
             try {
                 const results = await Promise.all(workers.map(worker => worker.recognize(blob)));
@@ -1663,6 +1490,7 @@
             }
         }
 
+        // Function to process each frame
         async function processFrame() {
             if (!scanning) return;
             const startTime = performance.now();
@@ -1739,14 +1567,14 @@
             if (enableThresholding.checked) { debugContext.fillText(`Thresholding: ${thresholdSlider.value}`, 10, yOffset); yOffset += 20; }
             if (enableDenoise.checked) { debugContext.fillText(`Denoise: ${denoiseSlider.value}`, 10, yOffset); yOffset += 20; }
             if (enableSharpen.checked) { debugContext.fillText(`Sharpen: ${sharpenSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableBrightness.checked) { debugContext.fillText(`Brightness: ${brightnessSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableContrast.checked) { debugContext.fillText(`Contrast: ${contrastSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableClarity.checked) { debugContext.fillText(`Clarity: ${claritySlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}`, 10, yOffset); yOffset += 20; }
-            if (enableSmoothing.checked) { debugContext.fillText(`Smoothing: ${smoothingSlider.value}`, 10, yOffset); yOffset += 20; }
+            if (enableBrightness.checked) { debugContext.fillText(`Brightness: ${brightnessSlider.value}%`, 10, yOffset); yOffset += 20; }
+            if (enableContrast.checked) { debugContext.fillText(`Contrast: ${contrastSlider.value}%`, 10, yOffset); yOffset += 20; }
+            if (enableClarity.checked) { debugContext.fillText(`Clarity: ${claritySlider.value}%`, 10, yOffset); yOffset += 20; }
+            if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}%`, 10, yOffset); yOffset += 20; }
+            if (enableSmoothing.checked) { debugContext.fillText(`Smoothing: ${smoothingSlider.value}%`, 10, yOffset); yOffset += 20; }
             if (sobelCheckbox.checked) { debugContext.fillText(`Edge Detection: Sobel`, 10, yOffset); yOffset += 20; }
             if (sobelCheckbox.checked) {
-                debugContext.fillText(`Edge Intensity: ${edgeIntensitySlider.value}`, 10, yOffset);
+                debugContext.fillText(`Edge Intensity: ${edgeIntensitySlider.value}%`, 10, yOffset);
             }
 
             console.log(`Average Brightness: ${averageBrightness}`);
@@ -1773,6 +1601,7 @@
             if (scanning) requestAnimationFrame(processFrame);
         }
 
+        // Function to preprocess with WebGL
         async function preprocessWithWebGL(sourceCanvas) {
             initWebGL();
             if (useCanvas2DPreprocessing) return null;
@@ -1787,18 +1616,24 @@
             gl.viewport(0,0,width,height);
             gl.clear(gl.COLOR_BUFFER_BIT);
 
+            gl.useProgram(glProgram); // Ensure the program is active
+
             gl.bindTexture(gl.TEXTURE_2D, glTexture);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+            console.log('WebGL texture updated with ROI canvas.');
 
             // Calculate step size based on image resolution
             const stepSize = 1.0 / Math.max(width, height);
             gl.uniform1f(window.uLocations.stepSize, stepSize);
+            console.log(`Set u_stepSize to ${stepSize}`);
 
             // Draw the processed image
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            console.log('WebGL drawArrays called.');
 
             const pixels = new Uint8ClampedArray(width * height * 4);
             gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+            console.log('WebGL readPixels called.');
 
             const offscreen = document.createElement('canvas');
             offscreen.width = width;
@@ -1806,14 +1641,22 @@
             const offCtx = offscreen.getContext('2d');
             const imageData = new ImageData(pixels, width, height);
             offCtx.putImageData(imageData,0,0);
+            console.log('Offscreen canvas updated with processed pixels.');
 
-            return new Promise(resolve => {
+            return new Promise((resolve, reject) => {
                 offscreen.toBlob((blob) => {
-                    resolve(blob);
+                    if (blob) {
+                        console.log('Preprocessed blob created.');
+                        resolve(blob);
+                    } else {
+                        console.error('Failed to create preprocessed blob.');
+                        reject(new Error('Blob creation failed.'));
+                    }
                 }, 'image/png');
             });
         }
 
+        // Function to update OCR info
         function updateOcrInfo() {
             const approximateFPS = 60;
             const frameBasedFrequency = approximateFPS/frameSkipping;
@@ -1841,10 +1684,11 @@
                 }
             } catch (err) {
                 console.error('Camera permission denied or error occurred:', err);
-                // Optionally show error to user
+                showError('Camera permissions are required for this application.');
             }
         });
 
+        // Function to populate configurations
         async function populateConfigurations() {
             try {
                 const response = await fetch('./configs/index.json'); // Fetch index.json
@@ -1864,6 +1708,7 @@
             }
         }
 
+        // Function to load a configuration
         async function loadConfiguration() {
             const selectedConfig = configSelect.value; // Get selected configuration
             if (!selectedConfig) return alert('Please select a configuration to load.');
@@ -1899,62 +1744,51 @@
                 document.getElementById('frame-skipping-select').value = configData.frameSkipping || '1';
                 document.getElementById('frequency-select').value = configData.frequency || '1';
                 document.getElementById('confidence-threshold-input').value = configData.confidenceThreshold || '60';
-                confidenceThreshold = configData.confidenceThreshold || 60;
+                confidenceThreshold = parseInt(configData.confidenceThreshold) || 60;
 
                 // Apply preprocessing options
                 const preprocessing = configData.preprocessing || {};
-                document.getElementById('enableGrayscale').checked = preprocessing.enableGrayscale || false;
-                document.getElementById('grayscaleSlider').value = preprocessing.grayscale || 100;
-                grayscaleValue.textContent = preprocessing.grayscale || 100;
-
-                document.getElementById('enableDenoise').checked = preprocessing.enableDenoise || false;
-                document.getElementById('denoiseSlider').value = preprocessing.denoise || 50;
-                denoiseValue.textContent = preprocessing.denoise || 50;
-
-                document.getElementById('enableSharpen').checked = preprocessing.enableSharpen || false;
-                document.getElementById('sharpenSlider').value = preprocessing.sharpen || 50;
-                sharpenValue.textContent = preprocessing.sharpen || 50;
-
-                document.getElementById('enableBrightness').checked = preprocessing.enableBrightness || false;
-                document.getElementById('brightnessSlider').value = preprocessing.brightness || 50;
-                brightnessValue.textContent = preprocessing.brightness || 50;
-
-                document.getElementById('enableContrast').checked = preprocessing.enableContrast || false;
-                document.getElementById('contrastSlider').value = preprocessing.contrast || 50;
-                contrastValue.textContent = preprocessing.contrast || 50;
-
-                document.getElementById('enableClarity').checked = preprocessing.enableClarity || false;
-                document.getElementById('claritySlider').value = preprocessing.clarity || 50;
-                clarityValue.textContent = preprocessing.clarity || 50;
-
-                document.getElementById('enableHighlights').checked = preprocessing.enableHighlights || false;
-                document.getElementById('highlightsSlider').value = preprocessing.highlights || 50;
-                highlightsValue.textContent = preprocessing.highlights || 50;
-
-                // Apply new smoothing and thresholding settings
-                enableSmoothing.checked = preprocessing.enableSmoothing || false;
-                smoothingSlider.value = preprocessing.smoothing || 0;
-                smoothingValue.textContent = preprocessing.smoothing || 0;
-                smoothingSlider.disabled = !enableSmoothing.checked;
+                enableGrayscale.checked = preprocessing.enableGrayscale || false;
+                grayscaleSlider.value = preprocessing.grayscale || 100;
+                grayscaleValue.textContent = `${preprocessing.grayscale || 100}%`;
 
                 enableThresholding.checked = preprocessing.enableThresholding || false;
                 thresholdSlider.value = preprocessing.thresholding || 128;
-                thresholdValue.textContent = preprocessing.thresholding || 128;
-                thresholdSlider.disabled = !enableThresholding.checked;
+                thresholdValue.textContent = `${preprocessing.thresholding || 128}`;
 
-                // Apply edge detection settings
-                if (preprocessing.edgeDetection) {
-                    if (preprocessing.edgeDetection.sobel) {
-                        sobelCheckbox.checked = true;
-                    } else {
-                        sobelCheckbox.checked = false;
-                    }
-                } else {
-                    sobelCheckbox.checked = false;
-                }
+                enableDenoise.checked = preprocessing.enableDenoise || false;
+                denoiseSlider.value = preprocessing.denoise || 50;
+                denoiseValue.textContent = `${preprocessing.denoise || 50}`;
 
+                enableSharpen.checked = preprocessing.enableSharpen || false;
+                sharpenSlider.value = preprocessing.sharpen || 50;
+                sharpenValue.textContent = `${preprocessing.sharpen || 50}`;
+
+                enableBrightness.checked = preprocessing.enableBrightness || false;
+                brightnessSlider.value = preprocessing.brightness || 50;
+                brightnessValue.textContent = `${preprocessing.brightness || 50}%`;
+
+                enableContrast.checked = preprocessing.enableContrast || false;
+                contrastSlider.value = preprocessing.contrast || 50;
+                contrastValue.textContent = `${preprocessing.contrast || 50}%`;
+
+                enableClarity.checked = preprocessing.enableClarity || false;
+                claritySlider.value = preprocessing.clarity || 50;
+                clarityValue.textContent = `${preprocessing.clarity || 50}%`;
+
+                enableHighlights.checked = preprocessing.enableHighlights || false;
+                highlightsSlider.value = preprocessing.highlights || 50;
+                highlightsValue.textContent = `${preprocessing.highlights || 50}%`;
+
+                // Apply new smoothing and edge detection settings
+                enableSmoothing.checked = preprocessing.enableSmoothing || false;
+                smoothingSlider.value = preprocessing.smoothing || 0;
+                smoothingValue.textContent = `${preprocessing.smoothing || 0}%`;
+                smoothingSlider.disabled = !enableSmoothing.checked;
+
+                sobelCheckbox.checked = preprocessing.edgeDetection?.sobel || false;
                 edgeIntensitySlider.value = preprocessing.edgeIntensity || 50;
-                edgeIntensityValue.textContent = preprocessing.edgeIntensity || 50;
+                edgeIntensityValue.textContent = `${preprocessing.edgeIntensity || 50}%`;
 
                 // Apply ROI settings
                 const roiSettings = configData.roi || {};
@@ -1975,6 +1809,7 @@
             }
         }
 
+        // Function to save the current configuration
         function saveConfiguration() {
             const cameraSelect = document.getElementById('camera-select');
             const cameraLabel = cameraSelect.options[cameraSelect.selectedIndex].text;
@@ -1988,6 +1823,8 @@
                 preprocessing: {
                     enableGrayscale: document.getElementById('enableGrayscale').checked,
                     grayscale: document.getElementById('grayscaleSlider').value,
+                    enableThresholding: document.getElementById('enableThresholding').checked,
+                    thresholding: document.getElementById('thresholdSlider').value,
                     enableDenoise: document.getElementById('enableDenoise').checked,
                     denoise: document.getElementById('denoiseSlider').value,
                     enableSharpen: document.getElementById('enableSharpen').checked,
@@ -2000,17 +1837,10 @@
                     clarity: document.getElementById('claritySlider').value,
                     enableHighlights: document.getElementById('enableHighlights').checked,
                     highlights: document.getElementById('highlightsSlider').value,
-
-                    // New Preprocessing Settings
                     enableSmoothing: enableSmoothing.checked,
                     smoothing: smoothingSlider.value,
-                    enableThresholding: enableThresholding.checked,
-                    thresholding: thresholdSlider.value,
-
-                    // Edge Detection Settings
                     edgeDetection: {
                         sobel: sobelCheckbox.checked
-                        // Canny removed
                     },
                     edgeIntensity: edgeIntensitySlider.value
                 },
@@ -2020,7 +1850,7 @@
                 }
             };
 
-            const configName = prompt('Enter a name for the configuration (e.g., "safe"):'); // Prompt for custom name
+            const configName = prompt('Enter a name for the configuration (e.g., "safe"):');
             if (!configName) return;
             if (!/^[a-zA-Z0-9_-]+$/.test(configName)) {
                 alert('Configuration name can only contain letters, numbers, underscores, and hyphens.');
@@ -2031,7 +1861,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${configName}.json`; // Save with custom name
+            a.download = `${configName}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -2040,11 +1870,203 @@
             alert('Configuration saved as a JSON file. Please upload it to the /configs directory and update index.json to reuse.');
         }
 
-        // Event Listeners for Configuration Management
-        loadConfigButton.addEventListener('click', loadConfiguration);
-        saveConfigButton.addEventListener('click', saveConfiguration);
+        // Function to populate available cameras
+        async function populateCameras(){
+            try {
+                const cameraSelect=document.getElementById('camera-select');
+                cameraSelect.innerHTML='';
+                const defaultOption=document.createElement('option');
+                defaultOption.value='';
+                defaultOption.text='Select Camera';
+                cameraSelect.appendChild(defaultOption);
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras=devices.filter(d=>d.kind==='videoinput');
+                cameras.forEach(camera=>{
+                    const option=document.createElement('option');
+                    option.value=camera.deviceId;
+                    option.text=camera.label||`Camera ${cameraSelect.length}`;
+                    cameraSelect.appendChild(option);
+                });
+                if(cameras.length===0){
+                    const option=document.createElement('option');
+                    option.value='';
+                    option.text='No cameras found';
+                    cameraSelect.appendChild(option);
+                }
+            } catch (err) {
+                console.error('Failed to populate cameras:',err);
+                showError('Failed to retrieve camera devices.');
+            }
+        }
 
-        // Side menu logic
+        // Terminate workers and stop streams on unload
+        window.addEventListener('beforeunload', async ()=>{
+            if(stream) {
+                stream.getTracks().forEach(t=>t.stop());
+            }
+            if(workers.length>0){
+                await Promise.all(workers.map(w=>w.terminate()));
+                workers=[];
+            }
+        });
+
+        // FPS Counter
+        (function(){
+            const fpsCounter=document.getElementById('fpsCounter');
+            let frameCount=0;
+            let fps=0;
+            let lastTime=performance.now();
+            function updateFPS(){
+                const now=performance.now();
+                frameCount++;
+                if(now-lastTime>=1000){
+                    fps=frameCount;
+                    frameCount=0;
+                    lastTime=now;
+                    fpsCounter.innerText=`FPS: ${fps}`;
+                }
+                requestAnimationFrame(updateFPS);
+            }
+            requestAnimationFrame(updateFPS);
+        })();
+
+        // Populate cameras on load
+        (async function populateCamerasOnLoad(){
+            await populateCameras();
+            adjustWorkersBasedOnPixelDensity();
+        })();
+
+        // Function to update ROI overlay
+        function updateROIOverlay() {
+            const overlayWidthPercent = roiWidthPercent + '%';
+            const overlayHeightPercent = roiHeightPercent + '%';
+
+            roiOverlay.style.width = overlayWidthPercent;
+            roiOverlay.style.height = overlayHeightPercent;
+
+            // Center the overlay
+            roiOverlay.style.top = '50%';
+            roiOverlay.style.left = '50%';
+            roiOverlay.style.transform = 'translate(-50%, -50%)';
+
+            // Get the overlay's display size in pixels
+            const overlayDisplayWidth = roiOverlay.clientWidth;
+            const overlayDisplayHeight = roiOverlay.clientHeight;
+
+            // Set debugCanvas internal dimensions to match display size
+            const debugCanvasElement = document.getElementById('debugCanvas');
+            debugCanvasElement.width = overlayDisplayWidth;
+            debugCanvasElement.height = overlayDisplayHeight;
+
+            // Ensure CSS dimensions match internal dimensions
+            debugCanvasElement.style.width = overlayDisplayWidth + 'px';
+            debugCanvasElement.style.height = overlayDisplayHeight + 'px';
+
+            // Log for verification
+            console.log(`Overlay Display Size: ${overlayDisplayWidth}px x ${overlayDisplayHeight}px`);
+            console.log(`Debug Canvas Internal Size: ${debugCanvasElement.width}px x ${debugCanvasElement.height}px`);
+            console.log(`Debug Canvas CSS Size: ${debugCanvasElement.style.width}px x ${debugCanvasElement.style.height}px`);
+        }
+
+        // Function to handle preprocessing updates
+        function updatePreprocessing() {
+            if (useCanvas2DPreprocessing) return; // Skip if using Canvas 2D
+
+            // Update grayscale
+            const grayscaleEnabled = enableGrayscale.checked ? 1 : 0;
+            const grayscaleAmount = parseFloat(grayscaleSlider.value) / 100.0;
+            gl.uniform1i(window.uLocations.grayscaleEnabled, grayscaleEnabled);
+            gl.uniform1f(window.uLocations.grayscaleAmount, grayscaleAmount);
+            console.log(`Set u_grayscaleEnabled to ${grayscaleEnabled}`);
+            console.log(`Set u_grayscaleAmount to ${grayscaleAmount}`);
+
+            // Update thresholding
+            const thresholdingEnabled = enableThresholding.checked ? 1 : 0;
+            const thresholdValue = parseInt(thresholdSlider.value, 10);
+            gl.uniform1i(window.uLocations.thresholdingEnabled, thresholdingEnabled);
+            gl.uniform1i(window.uLocations.thresholdValue, thresholdValue);
+            console.log(`Set u_thresholdingEnabled to ${thresholdingEnabled}`);
+            console.log(`Set u_thresholdValue to ${thresholdValue}`);
+
+            // Update denoise
+            const denoiseEnabled = enableDenoise.checked ? 1 : 0;
+            const denoiseAmount = parseFloat(denoiseSlider.value);
+            gl.uniform1i(window.uLocations.denoiseEnabled, denoiseEnabled);
+            gl.uniform1f(window.uLocations.denoiseAmount, denoiseAmount);
+            console.log(`Set u_denoiseEnabled to ${denoiseEnabled}`);
+            console.log(`Set u_denoiseAmount to ${denoiseAmount}`);
+
+            // Update sharpen
+            const sharpenEnabled = enableSharpen.checked ? 1 : 0;
+            const sharpenAmount = parseFloat(sharpenSlider.value);
+            gl.uniform1i(window.uLocations.sharpenEnabled, sharpenEnabled);
+            gl.uniform1f(window.uLocations.sharpenAmount, sharpenAmount);
+            console.log(`Set u_sharpenEnabled to ${sharpenEnabled}`);
+            console.log(`Set u_sharpenAmount to ${sharpenAmount}`);
+
+            // Update brightness
+            const brightnessEnabled = enableBrightness.checked ? 1 : 0;
+            const brightnessAmount = parseFloat(brightnessSlider.value);
+            gl.uniform1i(window.uLocations.brightnessEnabled, brightnessEnabled);
+            gl.uniform1f(window.uLocations.brightnessAmount, brightnessAmount);
+            console.log(`Set u_brightnessEnabled to ${brightnessEnabled}`);
+            console.log(`Set u_brightnessAmount to ${brightnessAmount}`);
+
+            // Update contrast
+            const contrastEnabled = enableContrast.checked ? 1 : 0;
+            const contrastAmount = parseFloat(contrastSlider.value);
+            gl.uniform1i(window.uLocations.contrastEnabled, contrastEnabled);
+            gl.uniform1f(window.uLocations.contrastAmount, contrastAmount);
+            console.log(`Set u_contrastEnabled to ${contrastEnabled}`);
+            console.log(`Set u_contrastAmount to ${contrastAmount}`);
+
+            // Update clarity
+            const clarityEnabled = enableClarity.checked ? 1 : 0;
+            const clarityAmount = parseFloat(claritySlider.value);
+            gl.uniform1i(window.uLocations.clarityEnabled, clarityEnabled);
+            gl.uniform1f(window.uLocations.clarityAmount, clarityAmount);
+            console.log(`Set u_clarityEnabled to ${clarityEnabled}`);
+            console.log(`Set u_clarityAmount to ${clarityAmount}`);
+
+            // Update highlights
+            const highlightsEnabled = enableHighlights.checked ? 1 : 0;
+            const highlightsAmount = parseFloat(highlightsSlider.value);
+            gl.uniform1i(window.uLocations.highlightsEnabled, highlightsEnabled);
+            gl.uniform1f(window.uLocations.highlightsAmount, highlightsAmount);
+            console.log(`Set u_highlightsEnabled to ${highlightsEnabled}`);
+            console.log(`Set u_highlightsAmount to ${highlightsAmount}`);
+
+            // Update smoothing
+            const smoothingEnabled = enableSmoothing.checked ? 1 : 0;
+            const smoothingAmount = parseInt(smoothingSlider.value, 10);
+            gl.uniform1i(window.uLocations.smoothingEnabled, smoothingEnabled);
+            gl.uniform1i(window.uLocations.smoothingAmount, smoothingAmount);
+            console.log(`Set u_smoothingEnabled to ${smoothingEnabled}`);
+            console.log(`Set u_smoothingAmount to ${smoothingAmount}`);
+
+            // Update edge detection
+            let edgeDetection = 0;
+            if (sobelCheckbox.checked) edgeDetection += 1; // 1 for Sobel
+            gl.uniform1i(window.uLocations.edgeDetection, edgeDetection); // 0: None, 1: Sobel
+            console.log(`Set u_edgeDetection to ${edgeDetection}`);
+
+            // Update edge intensity
+            const edgeIntensity = parseInt(edgeIntensitySlider.value, 10);
+            gl.uniform1i(window.uLocations.edgeIntensity, edgeIntensity);
+            console.log(`Set u_edgeIntensity to ${edgeIntensity}`);
+
+            // Update high performance device flag
+            gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
+            console.log(`Set u_isHighPerformanceDevice to ${isHighPerformanceDevice ? 1 : 0}`);
+
+            // Redraw debug canvas if scanning
+            if (scanning) {
+                console.log('Triggering frame processing after preprocessing update.');
+                requestAnimationFrame(processFrame);
+            }
+        }
+
+        // Function to toggle menu
         (function(){
             const menuToggle = document.getElementById('menu-toggle');
             const sideMenu = document.getElementById('side-menu');
@@ -2077,7 +2099,7 @@
             });
         })();
 
-        // Theme logic
+        // Function to handle theme toggle
         (function(){
             const toggleCheckbox = document.getElementById('theme-checkbox');
             const currentTheme = localStorage.getItem('theme')||'light';
@@ -2099,7 +2121,7 @@
             });
         })();
 
-        // Debug console capture
+        // Function to capture console logs into debugConsole
         (function(){
             const debugConsole = document.getElementById('debugConsole');
             function addLogEntry(type,args) {
@@ -2120,6 +2142,7 @@
             console.error=function(...args){originalError.apply(console,args);addLogEntry('error',args);};
         })();
 
+        // Function to save logs
         function saveLogs() {
             const debugConsole = document.getElementById('debugConsole');
             const logsText = debugConsole.innerText;
@@ -2135,6 +2158,7 @@
         }
         document.getElementById('save-logs-button').addEventListener('click', saveLogs);
 
+        // Function to toggle debug visibility
         (function(){
             const debugButton = document.getElementById('debug-button');
             const debugCanvas = document.getElementById('debugCanvas');
@@ -2173,7 +2197,7 @@
             });
         })();
 
-        // Function to update ROI overlay based on slider values
+        // Function to handle ROI overlay updates
         function updateROIOverlay() {
             const overlayWidthPercent = roiWidthPercent + '%';
             const overlayHeightPercent = roiHeightPercent + '%';
@@ -2205,69 +2229,171 @@
             console.log(`Debug Canvas CSS Size: ${debugCanvasElement.style.width}px x ${debugCanvasElement.style.height}px`);
         }
 
-        // Configuration Management System Implementation Continued
+        // Function to load a configuration
+        async function loadConfiguration() {
+            const selectedConfig = configSelect.value; // Get selected configuration
+            if (!selectedConfig) return alert('Please select a configuration to load.');
 
-        async function populateCameras(){
             try {
-                const cameraSelect=document.getElementById('camera-select');
-                cameraSelect.innerHTML='';
-                const defaultOption=document.createElement('option');
-                defaultOption.value='';
-                defaultOption.text='Select Camera';
-                cameraSelect.appendChild(defaultOption);
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const cameras=devices.filter(d=>d.kind==='videoinput');
-                cameras.forEach(camera=>{
-                    const option=document.createElement('option');
-                    option.value=camera.deviceId;
-                    option.text=camera.label||`Camera ${cameraSelect.length}`;
-                    cameraSelect.appendChild(option);
-                });
-                if(cameras.length===0){
-                    const option=document.createElement('option');
-                    option.value='';
-                    option.text='No cameras found';
-                    cameraSelect.appendChild(option);
+                const response = await fetch(`./configs/${selectedConfig}`); // Fetch the JSON file
+                const configData = await response.json();
+
+                // Apply configuration data to UI controls
+                document.getElementById('resolution-select').value = configData.resolution || '';
+
+                // Update camera-select based on device labels
+                const cameraSelect = document.getElementById('camera-select');
+                const cameraLabel = configData.camera || '';
+                if (cameraLabel) {
+                    let found = false;
+                    for (let i = 0; i < cameraSelect.options.length; i++) {
+                        if (cameraSelect.options[i].text === cameraLabel) {
+                            cameraSelect.selectedIndex = i;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        // If label not found, reset to default
+                        cameraSelect.value = '';
+                    }
+                } else {
+                    cameraSelect.value = '';
                 }
+
+                document.getElementById('workers-select').value = configData.workers || '1';
+                document.getElementById('frame-skipping-select').value = configData.frameSkipping || '1';
+                document.getElementById('frequency-select').value = configData.frequency || '1';
+                document.getElementById('confidence-threshold-input').value = configData.confidenceThreshold || '60';
+                confidenceThreshold = parseInt(configData.confidenceThreshold) || 60;
+
+                // Apply preprocessing options
+                const preprocessing = configData.preprocessing || {};
+                enableGrayscale.checked = preprocessing.enableGrayscale || false;
+                grayscaleSlider.value = preprocessing.grayscale || 100;
+                grayscaleValue.textContent = `${preprocessing.grayscale || 100}%`;
+
+                enableThresholding.checked = preprocessing.enableThresholding || false;
+                thresholdSlider.value = preprocessing.thresholding || 128;
+                thresholdValue.textContent = `${preprocessing.thresholding || 128}`;
+
+                enableDenoise.checked = preprocessing.enableDenoise || false;
+                denoiseSlider.value = preprocessing.denoise || 50;
+                denoiseValue.textContent = `${preprocessing.denoise || 50}`;
+
+                enableSharpen.checked = preprocessing.enableSharpen || false;
+                sharpenSlider.value = preprocessing.sharpen || 50;
+                sharpenValue.textContent = `${preprocessing.sharpen || 50}`;
+
+                enableBrightness.checked = preprocessing.enableBrightness || false;
+                brightnessSlider.value = preprocessing.brightness || 50;
+                brightnessValue.textContent = `${preprocessing.brightness || 50}%`;
+
+                enableContrast.checked = preprocessing.enableContrast || false;
+                contrastSlider.value = preprocessing.contrast || 50;
+                contrastValue.textContent = `${preprocessing.contrast || 50}%`;
+
+                enableClarity.checked = preprocessing.enableClarity || false;
+                claritySlider.value = preprocessing.clarity || 50;
+                clarityValue.textContent = `${preprocessing.clarity || 50}%`;
+
+                enableHighlights.checked = preprocessing.enableHighlights || false;
+                highlightsSlider.value = preprocessing.highlights || 50;
+                highlightsValue.textContent = `${preprocessing.highlights || 50}%`;
+
+                // Apply new smoothing and edge detection settings
+                enableSmoothing.checked = preprocessing.enableSmoothing || false;
+                smoothingSlider.value = preprocessing.smoothing || 0;
+                smoothingValue.textContent = `${preprocessing.smoothing || 0}%`;
+                smoothingSlider.disabled = !enableSmoothing.checked;
+
+                sobelCheckbox.checked = preprocessing.edgeDetection?.sobel || false;
+                edgeIntensitySlider.value = preprocessing.edgeIntensity || 50;
+                edgeIntensityValue.textContent = `${preprocessing.edgeIntensity || 50}%`;
+
+                // Apply ROI settings
+                const roiSettings = configData.roi || {};
+                roiWidthPercent = roiSettings.roiWidth || 60;
+                roiHeightPercent = roiSettings.roiHeight || 25;
+                roiWidthSlider.value = roiWidthPercent;
+                roiWidthValue.textContent = `${roiWidthPercent}%`;
+                roiHeightSlider.value = roiHeightPercent;
+                roiHeightValue.textContent = `${roiHeightPercent}%`;
+                updateROIOverlay();
+
+                updateOcrInfo();
+
+                alert('Configuration loaded successfully.');
             } catch (err) {
-                console.error('Failed to populate cameras:',err);
-                showError('Failed to retrieve camera devices.');
+                console.error('Error loading configuration:', err);
+                showError('Failed to load the selected configuration.');
             }
         }
 
-        window.addEventListener('beforeunload', async ()=>{
-            if(stream) {
-                stream.getTracks().forEach(t=>t.stop());
-            }
-            if(workers.length>0){
-                await Promise.all(workers.map(w=>w.terminate()));
-                workers=[];
-            }
-        });
-
-        (function(){
-            const fpsCounter=document.getElementById('fpsCounter');
-            let frameCount=0;
-            let fps=0;
-            let lastTime=performance.now();
-            function updateFPS(){
-                const now=performance.now();
-                frameCount++;
-                if(now-lastTime>=1000){
-                    fps=frameCount;
-                    frameCount=0;
-                    lastTime=now;
-                    fpsCounter.innerText=`FPS: ${fps}`;
+        // Function to save the current configuration
+        function saveConfiguration() {
+            const cameraSelect = document.getElementById('camera-select');
+            const cameraLabel = cameraSelect.options[cameraSelect.selectedIndex].text;
+            const configData = {
+                resolution: document.getElementById('resolution-select').value,
+                camera: cameraLabel !== 'Select Camera' && cameraLabel !== 'No cameras found' ? cameraLabel : '',
+                workers: document.getElementById('workers-select').value,
+                frameSkipping: document.getElementById('frame-skipping-select').value,
+                frequency: document.getElementById('frequency-select').value,
+                confidenceThreshold: document.getElementById('confidence-threshold-input').value,
+                preprocessing: {
+                    enableGrayscale: document.getElementById('enableGrayscale').checked,
+                    grayscale: document.getElementById('grayscaleSlider').value,
+                    enableThresholding: document.getElementById('enableThresholding').checked,
+                    thresholding: document.getElementById('thresholdSlider').value,
+                    enableDenoise: document.getElementById('enableDenoise').checked,
+                    denoise: document.getElementById('denoiseSlider').value,
+                    enableSharpen: document.getElementById('enableSharpen').checked,
+                    sharpen: document.getElementById('sharpenSlider').value,
+                    enableBrightness: document.getElementById('enableBrightness').checked,
+                    brightness: document.getElementById('brightnessSlider').value,
+                    enableContrast: document.getElementById('enableContrast').checked,
+                    contrast: document.getElementById('contrastSlider').value,
+                    enableClarity: document.getElementById('enableClarity').checked,
+                    clarity: document.getElementById('claritySlider').value,
+                    enableHighlights: document.getElementById('enableHighlights').checked,
+                    highlights: document.getElementById('highlightsSlider').value,
+                    enableSmoothing: enableSmoothing.checked,
+                    smoothing: smoothingSlider.value,
+                    edgeDetection: {
+                        sobel: sobelCheckbox.checked
+                    },
+                    edgeIntensity: edgeIntensitySlider.value
+                },
+                roi: {
+                    roiWidth: roiWidthPercent,
+                    roiHeight: roiHeightPercent
                 }
-                requestAnimationFrame(updateFPS);
-            }
-            requestAnimationFrame(updateFPS);
-        })();
+            };
 
-        (async function populateCamerasOnLoad(){
-            await populateCameras();
-            adjustWorkersBasedOnPixelDensity();
-        })();
+            const configName = prompt('Enter a name for the configuration (e.g., "safe"):');
+            if (!configName) return;
+            if (!/^[a-zA-Z0-9_-]+$/.test(configName)) {
+                alert('Configuration name can only contain letters, numbers, underscores, and hyphens.');
+                return;
+            }
+
+            const blob = new Blob([JSON.stringify(configData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${configName}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            alert('Configuration saved as a JSON file. Please upload it to the /configs directory and update index.json to reuse.');
+        }
+
+        // Event Listeners for Configuration Management
+        loadConfigButton.addEventListener('click', loadConfiguration);
+        saveConfigButton.addEventListener('click', saveConfiguration);
 
         // Function to initialize the application on DOMContentLoaded
         document.addEventListener('DOMContentLoaded', () => {
@@ -2276,9 +2402,10 @@
             stopButton.addEventListener('click', stopScanning);
             restartButton.addEventListener('click', startScanning); // Assuming restart just starts scanning again
 
-            // Array of preprocessing controls
+            // Attach event listeners for sliders
             const preprocessingControls = [
                 { slider: grayscaleSlider, valueDisplay: grayscaleValue },
+                { slider: thresholdSlider, valueDisplay: thresholdValue },
                 { slider: denoiseSlider, valueDisplay: denoiseValue },
                 { slider: sharpenSlider, valueDisplay: sharpenValue },
                 { slider: brightnessSlider, valueDisplay: brightnessValue },
@@ -2286,23 +2413,21 @@
                 { slider: claritySlider, valueDisplay: clarityValue },
                 { slider: highlightsSlider, valueDisplay: highlightsValue },
                 { slider: smoothingSlider, valueDisplay: smoothingValue },
-                { slider: thresholdSlider, valueDisplay: thresholdValue },
                 { slider: edgeIntensitySlider, valueDisplay: edgeIntensityValue }
-                // Add other sliders as needed
             ];
 
-            // Attach event listeners for sliders
             preprocessingControls.forEach(control => {
                 control.slider.addEventListener('input', () => {
-                    control.valueDisplay.textContent = control.slider.value + (control.slider.id.includes('threshold') ? '' : (control.slider.id.includes('grayscale') || control.slider.id.includes('smoothing') ? '%' : ''));
+                    control.valueDisplay.textContent = control.slider.id.includes('threshold') ? `${control.slider.value}` : `${control.slider.value}%`;
                     updatePreprocessing();
                 });
                 control.slider.addEventListener('change', updatePreprocessing);
             });
 
-            // Array of preprocessing checkboxes
+            // Attach event listeners for checkboxes
             const preprocessingCheckboxes = [
                 enableGrayscale,
+                enableThresholding,
                 enableDenoise,
                 enableSharpen,
                 enableBrightness,
@@ -2310,18 +2435,18 @@
                 enableClarity,
                 enableHighlights,
                 enableSmoothing,
-                enableThresholding,
                 sobelCheckbox
-                // Add other checkboxes as needed
             ];
 
-            // Attach event listeners for checkboxes
             preprocessingCheckboxes.forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     // Enable or disable corresponding sliders based on checkbox state
                     switch(this.id) {
                         case 'enableGrayscale':
                             grayscaleSlider.disabled = !this.checked;
+                            break;
+                        case 'enableThresholding':
+                            thresholdSlider.disabled = !this.checked;
                             break;
                         case 'enableDenoise':
                             denoiseSlider.disabled = !this.checked;
@@ -2344,9 +2469,6 @@
                         case 'enableSmoothing':
                             smoothingSlider.disabled = !this.checked;
                             break;
-                        case 'enableThresholding':
-                            thresholdSlider.disabled = !this.checked;
-                            break;
                         case 'sobelCheckbox':
                             // No slider to disable
                             break;
@@ -2357,7 +2479,7 @@
                 });
             });
 
-            // Event listeners for ROI sliders
+            // Attach event listeners for ROI sliders
             roiWidthSlider.addEventListener('input', function() {
                 roiWidthPercent = parseInt(this.value);
                 roiWidthValue.textContent = `${roiWidthPercent}%`;
@@ -2369,101 +2491,101 @@
                 roiHeightValue.textContent = `${roiHeightPercent}%`;
                 updateROIOverlay();
             });
-
-            // Adjust workers based on pixel density on load
-            adjustWorkersBasedOnPixelDensity();
         });
 
-        // Function to handle preprocessing updates
-        function updatePreprocessing() {
-            if (useCanvas2DPreprocessing) return; // Skip if using Canvas 2D
+        // Function to start scanning
+        async function startScanning() {
+            if (scanning) return;
+            startButton.disabled = true;
+            stopButton.disabled = true;
+            restartButton.style.display = 'none';
+            startButton.innerText = 'Starting...';
+            currentResolution = getSelectedResolution();
+            selectedCameraId = document.getElementById('camera-select').value || null;
+            await initCamera(currentResolution, selectedCameraId);
 
-            // Update grayscale
-            gl.uniform1i(window.uLocations.grayscaleEnabled, enableGrayscale.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.grayscaleAmount, parseFloat(grayscaleSlider.value) / 100.0);
+            // Adjust workers based on pixel density
+            adjustWorkersBasedOnPixelDensity();
 
-            // Update thresholding
-            gl.uniform1i(window.uLocations.thresholdingEnabled, enableThresholding.checked ? 1 : 0);
-            gl.uniform1i(window.uLocations.thresholdValue, parseInt(thresholdSlider.value, 10));
-
-            // Update denoise
-            gl.uniform1i(window.uLocations.denoiseEnabled, enableDenoise.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.denoiseAmount, parseFloat(denoiseSlider.value));
-
-            // Update sharpen
-            gl.uniform1i(window.uLocations.sharpenEnabled, enableSharpen.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.sharpenAmount, parseFloat(sharpenSlider.value));
-
-            // Update brightness
-            gl.uniform1i(window.uLocations.brightnessEnabled, enableBrightness.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.brightnessAmount, parseFloat(brightnessSlider.value));
-
-            // Update contrast
-            gl.uniform1i(window.uLocations.contrastEnabled, enableContrast.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.contrastAmount, parseFloat(contrastSlider.value));
-
-            // Update clarity
-            gl.uniform1i(window.uLocations.clarityEnabled, enableClarity.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.clarityAmount, parseFloat(claritySlider.value));
-
-            // Update highlights
-            gl.uniform1i(window.uLocations.highlightsEnabled, enableHighlights.checked ? 1 : 0);
-            gl.uniform1f(window.uLocations.highlightsAmount, parseFloat(highlightsSlider.value));
-
-            // Update smoothing
-            gl.uniform1i(window.uLocations.smoothingEnabled, enableSmoothing.checked ? 1 : 0);
-            gl.uniform1i(window.uLocations.smoothingAmount, parseInt(smoothingSlider.value, 10));
-
-            // Update edge detection
-            let edgeDetection = 0;
-            if (sobelCheckbox.checked) edgeDetection += 1; // 1 for Sobel
-            gl.uniform1i(window.uLocations.edgeDetection, edgeDetection); // 0: None, 1: Sobel
-
-            // Update edge intensity
-            gl.uniform1i(window.uLocations.edgeIntensity, parseInt(edgeIntensitySlider.value, 10));
-
-            // Update high performance device flag
-            gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
-
-            // Redraw debug canvas if scanning
-            if (scanning) {
-                // Trigger immediate frame processing
-                requestAnimationFrame(processFrame);
+            // Lazy init workers if needed
+            const workersCount = parseInt(workersSelect.value);
+            if (!isTesseractInitialized) {
+                await initializeTesseract(workersCount);
             }
-        }
 
-        // Function to handle WebGL initialization failure
-        function handleWebGLFailure() {
-            showError('WebGL preprocessing failed. Switching to Canvas 2D preprocessing.');
-            useCanvas2DPreprocessing = true;
-            initializeCanvas2DPreprocessing();
-        }
+            frameSkipping = parseInt(frameSkippingSelect.value);
+            ocrFrequency = parseFloat(frequencySelect.value);
+            confidenceThreshold = parseInt(confidenceThresholdInput.value);
+            updateOcrInfo();
 
-        // WebGL Fallback Implementation
-        function initWebGLWithFallback() {
-            try {
+            // Init WebGL if not done yet and fallback is not set
+            if (!glInitialized && !useCanvas2DPreprocessing) {
                 initWebGL();
-            } catch (error) {
-                console.error('WebGL initialization failed:', error);
-                handleWebGLFailure();
             }
+
+            // Initialize ROI overlay based on current sliders
+            updateROIOverlay();
+
+            scanning = true;
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            startButton.innerText = 'Scanning...';
+            output.value = '';
+
+            // Show debug elements if they are active
+            if (debugCanvas.style.visibility === 'visible') {
+                lightbulbIndicator.style.display = 'block';
+                lightingFeedback.style.display = 'block';
+            }
+
+            requestAnimationFrame(processFrame);
         }
 
-        // Enhanced Error Handling and User Feedback
-        // Already handled in various functions above
+        // Function to stop scanning
+        async function stopScanning() {
+            if (!scanning) return;
+            scanning = false;
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            restartButton.style.display = 'block';
+            startButton.innerText = 'Start Scanner';
+            roiOverlay.style.borderColor = '#00b4d8';
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            debugCtx.clearRect(0,0,debugCanvas.width, debugCanvas.height);
+            lightbulbIndicator.style.display = 'none';
+            lightingFeedback.style.display = 'none';
+            console.log('Scanning stopped.');
+        }
 
-        // Utility to convert canvas to Blob asynchronously
+        // Function to get selected resolution
+        function getSelectedResolution() {
+            const resolutionSelect = document.getElementById('resolution-select');
+            const val = resolutionSelect.value;
+            if (!val) return null;
+            const [width, height] = val.split('x').map(Number);
+            return `${width}x${height}`;
+        }
+
+        // Function to capture canvas as Blob asynchronously
         HTMLCanvasElement.prototype.toBlobAsync = function() {
             return new Promise((resolve) => {
                 this.toBlob(resolve, 'image/png');
             });
         }
 
-        // Initialize based on device pixel density
-        adjustWorkersBasedOnPixelDensity();
-
-        // Prevent multiple instances of adjustWorkersBasedOnPixelDensity
-        // Removed duplicate function definition
+        // Function to capture configuration before unloading
+        window.addEventListener('beforeunload', async ()=>{
+            if(stream) {
+                stream.getTracks().forEach(t=>t.stop());
+            }
+            if(workers.length>0){
+                await Promise.all(workers.map(w=>w.terminate()));
+                workers=[];
+            }
+        });
 
     </script>
 </body>
