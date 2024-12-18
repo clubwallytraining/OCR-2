@@ -796,7 +796,7 @@
                     <div class="preprocessing-option">
                         <label><input type="checkbox" id="enableGrayscale">Enable Grayscale</label>
                         <input type="range" id="grayscaleSlider" class="preprocessing-option-slider" min="0" max="100" value="100" aria-label="Grayscale Slider">
-                        <span id="grayscaleValue" class="value-display">100</span>
+                        <span id="grayscaleValue" class="value-display">100%</span>
                     </div>
                     <div class="preprocessing-option">
                         <label><input type="checkbox" id="enableDenoise">Enable Denoise</label>
@@ -832,7 +832,7 @@
                     <!-- New Smoothing Control -->
                     <div class="smoothing-control">
                         <label><input type="checkbox" id="enableSmoothing">Enable Smoothing</label>
-                        <input type="range" id="smoothingSlider" class="preprocessing-option-slider" min="0" max="100" value="0" aria-label="Smoothing Slider" disabled>
+                        <input type="range" id="smoothingSlider" class="preprocessing-option-slider" min="0" max="10" value="0" aria-label="Smoothing Slider" disabled>
                         <span id="smoothingValue" class="value-display">0</span>
                     </div>
 
@@ -985,9 +985,8 @@
         let frameCounter = 0;
         
         // Adaptive frame skipping variables
-        let targetFrameTime = 1000 / 30; // target ~30 fps processing
-        let maxSkipping = 60; 
-        let dynamicAdjust = true;
+        const targetFrameRate = 30;
+        const targetFrameTime = 1000 / targetFrameRate; // in milliseconds
 
         // Dynamic camera frame rate and adaptive resolution suggestions
         let currentResolution = null;
@@ -1164,7 +1163,7 @@
 
                 void main(void) {
                     gl_Position = vec4(a_position, 0.0, 1.0);
-                    v_texCoord = v_texCoord;
+                    v_texCoord = a_texCoord;
                 }
             `;
 
@@ -1404,10 +1403,9 @@
                 return program;
             }
 
-            // Initialize Shaders and Program
-            function initShaders() {
-                const vertexShader = compileShader(gl.VERTEX_SHADER, vertexShaderSource);
-                const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+            function initShaders(vertexSource, fragmentSource) {
+                const vertexShader = compileShader(gl.VERTEX_SHADER, vertexSource);
+                const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentSource);
                 if (!vertexShader || !fragmentShader) return null;
                 const program = linkProgram(vertexShader, fragmentShader);
                 if (!program) return null;
@@ -1416,28 +1414,18 @@
             }
 
             // Initialize WebGL and Shaders
-            function initWebGLWithFallback() {
-                try {
-                    initWebGL();
-                } catch (error) {
-                    console.error('WebGL initialization failed:', error);
-                    handleWebGLFailure();
-                }
-            }
-
-            function initWebGL() {
+            function initWebGLWithShaders() {
                 if (glInitialized || useCanvas2DPreprocessing) return;
                 const webglCanvas = document.getElementById('webglCanvas');
-                gl = webglCanvas.getContext('webgl', { preserveDrawingBuffer: false }) || webglCanvas.getContext('experimental-webgl', { preserveDrawingBuffer: false });
+                gl = webglCanvas.getContext('webgl') || webglCanvas.getContext('experimental-webgl');
                 if (!gl) {
-                    showError('WebGL not supported. Falling back to Canvas 2D preprocessing.');
+                    showError('WebGL not supported in this browser.');
                     useCanvas2DPreprocessing = true;
                     initializeCanvas2DPreprocessing();
                     return;
                 }
 
-                // Initialize shaders and program
-                glProgram = initShaders();
+                glProgram = initShaders(vertexShaderSource, fragmentShaderSource);
                 if (!glProgram) {
                     showError('Failed to initialize shader program.');
                     useCanvas2DPreprocessing = true;
@@ -1510,9 +1498,8 @@
                 gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
 
                 gl.clearColor(0.0,0.0,0.0,1.0);
-                gl.clear(gl.COLOR_BUFFER_BIT);
                 glInitialized = true;
-                console.log('WebGL initialized and shader program linked.');
+                console.log('WebGL initialized successfully.');
             }
 
             function initializeCanvas2DPreprocessing() {
@@ -1649,9 +1636,9 @@
                 confidenceThreshold = parseInt(confidenceThresholdInput.value);
                 updateOcrInfo();
 
-                // Init WebGL if not done yet and fallback is not set
+                // Init WebGL with shaders if not done yet and fallback is not set
                 if (!glInitialized && !useCanvas2DPreprocessing) {
-                    initWebGLWithFallback();
+                    initWebGLWithShaders();
                 }
 
                 // Initialize ROI overlay based on current sliders
@@ -1718,7 +1705,6 @@
                 if (!scanning) return;
 
                 const deltaTime = currentTime - lastFrameTime;
-
                 if (deltaTime < targetFrameTime) {
                     requestAnimationFrame(processFrame);
                     return;
@@ -1797,22 +1783,7 @@
                     await performOCR(preprocessedBlob);
                 }
 
-                // Adaptive frame skipping based on processing time and pixel density
-                const processingTime = performance.now() - startTime;
-                if (dynamicAdjust) {
-                    if (processingTime > targetFrameTime && frameSkipping < maxSkipping) {
-                        frameSkipping++;
-                    } else if (processingTime < targetFrameTime && frameSkipping > 1) {
-                        frameSkipping--;
-                    }
-
-                    // Further adjust based on pixel density
-                    if (pixelDensity < 1.5 && frameSkipping < maxSkipping) {
-                        frameSkipping++;
-                    }
-                }
-
-                if (scanning) requestAnimationFrame(processFrame);
+                requestAnimationFrame(processFrame);
             }
 
             async function preprocessWithWebGL(sourceCanvas) {
@@ -1969,7 +1940,7 @@
                     const preprocessing = configData.preprocessing || {};
                     document.getElementById('enableGrayscale').checked = preprocessing.enableGrayscale || false;
                     document.getElementById('grayscaleSlider').value = preprocessing.grayscale || 100;
-                    grayscaleValue.textContent = preprocessing.grayscale || 100;
+                    grayscaleValue.textContent = preprocessing.grayscale ? `${preprocessing.grayscale}%` : '100%';
 
                     document.getElementById('enableDenoise').checked = preprocessing.enableDenoise || false;
                     document.getElementById('denoiseSlider').value = preprocessing.denoise || 50;
@@ -2340,21 +2311,6 @@
                 stopButton.addEventListener('click', stopScanning);
                 restartButton.addEventListener('click', startScanning); // Assuming restart just starts scanning again
 
-                // Array of preprocessing controls
-                const preprocessingControls = [
-                    { slider: grayscaleSlider, valueDisplay: grayscaleValue },
-                    { slider: denoiseSlider, valueDisplay: denoiseValue },
-                    { slider: sharpenSlider, valueDisplay: sharpenValue },
-                    { slider: brightnessSlider, valueDisplay: brightnessValue },
-                    { slider: contrastSlider, valueDisplay: contrastValue },
-                    { slider: claritySlider, valueDisplay: clarityValue },
-                    { slider: highlightsSlider, valueDisplay: highlightsValue },
-                    { slider: smoothingSlider, valueDisplay: smoothingValue },
-                    { slider: thresholdSlider, valueDisplay: thresholdValue },
-                    { slider: edgeIntensitySlider, valueDisplay: edgeIntensityValue }
-                    // Add other sliders as needed
-                ];
-
                 // Array of preprocessing sliders with their corresponding value displays
                 const preprocessingSliders = [
                     { slider: grayscaleSlider, display: grayscaleValue },
@@ -2370,20 +2326,19 @@
                 ];
 
                 // Attach event listeners for sliders
-                preprocessingSliders.forEach(({ slider, display }) => {
-                    slider.addEventListener('input', () => {
-                        // Update display based on slider value
-                        if (slider.id.includes('threshold')) {
-                            display.textContent = slider.value;
-                        } else if (slider.id.includes('grayscale') || slider.id.includes('smoothing')) {
-                            display.textContent = `${slider.value}%`;
+                preprocessingSliders.forEach(control => {
+                    control.slider.addEventListener('input', () => {
+                        if (control.slider.id.includes('threshold')) {
+                            control.display.textContent = control.slider.value;
+                        } else if (control.slider.id.includes('grayscale') || control.slider.id.includes('smoothing')) {
+                            control.display.textContent = `${control.slider.value}%`;
                         } else {
-                            display.textContent = slider.value;
+                            control.display.textContent = control.slider.value;
                         }
                         // Update preprocessing uniforms
                         updatePreprocessing();
                     });
-                    slider.addEventListener('change', updatePreprocessing);
+                    control.slider.addEventListener('change', updatePreprocessing);
                 });
 
                 // Array of preprocessing checkboxes
@@ -2528,7 +2483,7 @@
 
                 // Set other uniforms
                 gl.uniform1i(window.uLocations.isHighPerformanceDevice, isHighPerformanceDevice ? 1 : 0);
-                gl.uniform1f(window.uLocations.stepSize, calculateStepSize(videoCanvas));
+                gl.uniform1f(window.uLocations.stepSize, calculateStepSize());
 
                 // Log uniform values for debugging
                 console.log(`Grayscale Enabled: ${grayscaleEnabled}, Amount: ${grayscaleAmount}`);
@@ -2548,6 +2503,13 @@
                 }
             }
 
+            // Function to calculate step size dynamically
+            function calculateStepSize(sourceCanvas) {
+                const width = sourceCanvas.width;
+                const height = sourceCanvas.height;
+                return 1.0 / Math.max(width, height);
+            }
+
             // Function to handle WebGL initialization failure
             function handleWebGLFailure() {
                 showError('WebGL preprocessing failed. Switching to Canvas 2D preprocessing.');
@@ -2558,7 +2520,7 @@
             // WebGL Fallback Implementation
             function initWebGLWithFallback() {
                 try {
-                    initWebGL();
+                    initWebGLWithShaders();
                 } catch (error) {
                     console.error('WebGL initialization failed:', error);
                     handleWebGLFailure();
@@ -2581,6 +2543,24 @@
             // Prevent multiple instances of adjustWorkersBasedOnPixelDensity
             // Removed duplicate function definition
 
+            // Handle WebGL Context Loss
+            (function(){
+                const webglCanvas = document.getElementById('webglCanvas');
+                webglCanvas.addEventListener('webglcontextlost', (event) => {
+                    event.preventDefault();
+                    showError('WebGL context lost. Please reload the page.');
+                    scanning = false;
+                    stopScanning();
+                }, false);
+
+                webglCanvas.addEventListener('webglcontextrestored', () => {
+                    console.log('WebGL context restored.');
+                    initWebGLWithShaders();
+                    if (scanning) {
+                        requestAnimationFrame(processFrame);
+                    }
+                }, false);
+            })();
         </script>
-</body>
+    </body>
     </html>
