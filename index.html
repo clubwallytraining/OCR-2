@@ -289,14 +289,15 @@
             position: absolute;
             top: 0;
             left: 0;
-            width: auto; /* Remove percentage-based scaling */
-            height: auto; /* Remove percentage-based scaling */
-            visibility: hidden; /* Keep it rendered but invisible */
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            visibility: hidden; /* Changed from display: none to visibility: hidden */
             z-index: 4; /* Higher z-index to appear above overlay if needed */
             pointer-events: none;
             border: none; /* Remove border if overlay already has one */
             background: transparent; /* Make background transparent to see the overlay */
-            display: none;
+            /* Removed display: none; */
         }
 
         #focusIndicator {
@@ -428,6 +429,9 @@
             border-radius: 8px;
             visibility: hidden; /* Changed from display: none to visibility: hidden */
             z-index: 2;
+            pointer-events: none;
+            border: none;
+            background: transparent;
         }
 
         #debugConsole {
@@ -1609,7 +1613,7 @@
             output.value = '';
 
             // Show debug elements if they are active
-            if (debugCanvas.style.display === 'block') {
+            if (debugCanvas.style.visibility === 'visible') {
                 lightbulbIndicator.style.display = 'block';
                 lightingFeedback.style.display = 'block';
             }
@@ -2136,14 +2140,14 @@
             const debugCanvas = document.getElementById('debugCanvas');
             const debugConsole = document.getElementById('debugConsole');
             const debugControls = document.getElementById('debugControls');
-            debugCanvas.style.display='none';
+            debugCanvas.style.visibility='hidden'; /* Changed from display: none */
             debugConsole.style.display='none';
             debugControls.style.display='none';
             let isDebugVisible=false;
             debugButton.addEventListener('click',function(){
                 isDebugVisible=!isDebugVisible;
                 if(isDebugVisible){
-                    debugCanvas.style.display='block';
+                    debugCanvas.style.visibility='visible'; /* Changed from display: block */
                     debugConsole.style.display='block';
                     debugControls.style.display='block';
                     debugButton.innerText='Hide Debug';
@@ -2151,7 +2155,7 @@
                     lightbulbIndicator.style.display = 'block';
                     lightingFeedback.style.display = 'block';
                 } else {
-                    debugCanvas.style.display='none';
+                    debugCanvas.style.visibility='hidden'; /* Changed from display: none */
                     debugConsole.style.display='none';
                     debugControls.style.display='none';
                     debugButton.innerText='Show Debug';
@@ -2265,6 +2269,111 @@
             adjustWorkersBasedOnPixelDensity();
         })();
 
+        // Function to initialize the application on DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // Attach event listeners to start and stop buttons
+            startButton.addEventListener('click', startScanning);
+            stopButton.addEventListener('click', stopScanning);
+            restartButton.addEventListener('click', startScanning); // Assuming restart just starts scanning again
+
+            // Array of preprocessing controls
+            const preprocessingControls = [
+                { slider: grayscaleSlider, valueDisplay: grayscaleValue },
+                { slider: denoiseSlider, valueDisplay: denoiseValue },
+                { slider: sharpenSlider, valueDisplay: sharpenValue },
+                { slider: brightnessSlider, valueDisplay: brightnessValue },
+                { slider: contrastSlider, valueDisplay: contrastValue },
+                { slider: claritySlider, valueDisplay: clarityValue },
+                { slider: highlightsSlider, valueDisplay: highlightsValue },
+                { slider: smoothingSlider, valueDisplay: smoothingValue },
+                { slider: thresholdSlider, valueDisplay: thresholdValue },
+                { slider: edgeIntensitySlider, valueDisplay: edgeIntensityValue }
+                // Add other sliders as needed
+            ];
+
+            // Attach event listeners for sliders
+            preprocessingControls.forEach(control => {
+                control.slider.addEventListener('input', () => {
+                    control.valueDisplay.textContent = control.slider.value + (control.slider.id.includes('threshold') ? '' : (control.slider.id.includes('grayscale') || control.slider.id.includes('smoothing') ? '%' : ''));
+                    updatePreprocessing();
+                });
+                control.slider.addEventListener('change', updatePreprocessing);
+            });
+
+            // Array of preprocessing checkboxes
+            const preprocessingCheckboxes = [
+                enableGrayscale,
+                enableDenoise,
+                enableSharpen,
+                enableBrightness,
+                enableContrast,
+                enableClarity,
+                enableHighlights,
+                enableSmoothing,
+                enableThresholding,
+                sobelCheckbox
+                // Add other checkboxes as needed
+            ];
+
+            // Attach event listeners for checkboxes
+            preprocessingCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    // Enable or disable corresponding sliders based on checkbox state
+                    switch(this.id) {
+                        case 'enableGrayscale':
+                            grayscaleSlider.disabled = !this.checked;
+                            break;
+                        case 'enableDenoise':
+                            denoiseSlider.disabled = !this.checked;
+                            break;
+                        case 'enableSharpen':
+                            sharpenSlider.disabled = !this.checked;
+                            break;
+                        case 'enableBrightness':
+                            brightnessSlider.disabled = !this.checked;
+                            break;
+                        case 'enableContrast':
+                            contrastSlider.disabled = !this.checked;
+                            break;
+                        case 'enableClarity':
+                            claritySlider.disabled = !this.checked;
+                            break;
+                        case 'enableHighlights':
+                            highlightsSlider.disabled = !this.checked;
+                            break;
+                        case 'enableSmoothing':
+                            smoothingSlider.disabled = !this.checked;
+                            break;
+                        case 'enableThresholding':
+                            thresholdSlider.disabled = !this.checked;
+                            break;
+                        case 'sobelCheckbox':
+                            // No slider to disable
+                            break;
+                        default:
+                            break;
+                    }
+                    updatePreprocessing();
+                });
+            });
+
+            // Event listeners for ROI sliders
+            roiWidthSlider.addEventListener('input', function() {
+                roiWidthPercent = parseInt(this.value);
+                roiWidthValue.textContent = `${roiWidthPercent}%`;
+                updateROIOverlay();
+            });
+
+            roiHeightSlider.addEventListener('input', function() {
+                roiHeightPercent = parseInt(this.value);
+                roiHeightValue.textContent = `${roiHeightPercent}%`;
+                updateROIOverlay();
+            });
+
+            // Adjust workers based on pixel density on load
+            adjustWorkersBasedOnPixelDensity();
+        });
+
         // Function to handle preprocessing updates
         function updatePreprocessing() {
             if (useCanvas2DPreprocessing) return; // Skip if using Canvas 2D
@@ -2323,6 +2432,13 @@
             }
         }
 
+        // Function to handle WebGL initialization failure
+        function handleWebGLFailure() {
+            showError('WebGL preprocessing failed. Switching to Canvas 2D preprocessing.');
+            useCanvas2DPreprocessing = true;
+            initializeCanvas2DPreprocessing();
+        }
+
         // WebGL Fallback Implementation
         function initWebGLWithFallback() {
             try {
@@ -2346,6 +2462,9 @@
         // Initialize based on device pixel density
         adjustWorkersBasedOnPixelDensity();
 
+        // Prevent multiple instances of adjustWorkersBasedOnPixelDensity
+        // Removed duplicate function definition
+
     </script>
 </body>
-</html>
+    </html>
