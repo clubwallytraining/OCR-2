@@ -234,13 +234,75 @@
         }
 
         .overlay {
-            position: absolute;
-            display: block;
-            border: 3px dashed #00b4d8;
-            border-radius: 8px;
-            z-index: 3;
+            position: fixed;
             top: 0;
             left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 1000;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+
+        #container.side-menu-open {
+            margin-left: 300px;
+            transition: margin-left 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            #container.side-menu-open {
+                margin-left: 0;
+            }
+        }
+
+        #container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-bottom: 240px;
+            overflow: visible;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        #videoWrapper {
+            position: relative;
+            margin-top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        #video {
+            width: 90%;
+            max-width: 500px;
+            border-radius: 12px;
+            background: #000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            position: relative;
+            z-index: 0;
+        }
+
+        #overlay {
+            position: absolute;
+            width: 60%;
+            height: 150px;
+            border: 3px dashed #00b4d8;
+            border-radius: 8px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+            z-index: 3;
         }
 
         #debugCanvas {
@@ -256,6 +318,9 @@
 
         #focusIndicator {
             position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -110%);
             background-color: rgba(0,0,0,0.75);
             color: #fff;
             padding: 6px 12px;
@@ -389,6 +454,8 @@
             position: absolute;
             top: 0;
             left: 0;
+            width: 100%;
+            height: 100%;
             border-radius: 8px;
             display: none;
             z-index: 2;
@@ -740,6 +807,7 @@
         </div>
 
         <button id="debug-button" class="debug-button">Show Debug</button>
+
     </div>
 
     <div class="overlay" id="menu-overlay"></div>
@@ -773,9 +841,8 @@
 
     <div id="errorMsg"></div>
     <div id="container">
-        <div id="videoWrapper" style="position: relative;">
+        <div id="videoWrapper">
             <video id="video" playsinline></video>
-            <!-- The overlay will be positioned with exact pixel dimensions after we know the video size -->
             <div id="overlay">
                 <canvas id="webglCanvas"></canvas>
                 <canvas id="debugCanvas"></canvas>
@@ -1052,6 +1119,7 @@
             }
 
             updateROIOverlay();
+
             scanning = true;
             startButton.disabled = true;
             stopButton.disabled = false;
@@ -1128,18 +1196,18 @@
                 return;
             }
 
-            const videoWidth = video.videoWidth;
-            const videoHeight = video.videoHeight;
+            const videoDisplayWidth = video.clientWidth;
+            const videoDisplayHeight = video.clientHeight;
 
-            const roiW = Math.round(videoWidth * (roiWidthPercent / 100));
-            const roiH = Math.round(videoHeight * (roiHeightPercent / 100));
-            const roiX = Math.round((videoWidth - roiW) / 2);
-            const roiY = Math.round((videoHeight - roiH) / 2);
+            const roiW = Math.round(videoDisplayWidth * (roiWidthPercent / 100));
+            const roiH = Math.round(videoDisplayHeight * (roiHeightPercent / 100));
+            const roiX = Math.round((videoDisplayWidth - roiW) / 2);
+            const roiY = Math.round((videoDisplayHeight - roiH) / 2);
 
-            videoCanvas.width = videoWidth;
-            videoCanvas.height = videoHeight;
+            videoCanvas.width = videoDisplayWidth;
+            videoCanvas.height = videoDisplayHeight;
             const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+            ctx.drawImage(video, 0, 0, videoDisplayWidth, videoDisplayHeight);
 
             roiCanvas.width = roiW;
             roiCanvas.height = roiH;
@@ -1153,12 +1221,13 @@
             debugContext.clearRect(0, 0, debugCanvasElement.width, debugCanvasElement.height);
             const img = await createImageBitmap(preprocessedBlob);
 
-            debugContext.imageSmoothingEnabled = false;
-            debugContext.drawImage(img, 0, 0, debugCanvasElement.width, debugCanvasElement.height);
+            // Draw without scaling
+            debugContext.drawImage(img, 0, 0);
 
             const averageBrightness = calculateAverageBrightness(debugCanvasElement);
             updateLightbulb(averageBrightness);
 
+            // Draw debug information
             debugContext.font = '16px Arial';
             debugContext.fillStyle = 'yellow';
             let yOffset = 20;
@@ -1472,36 +1541,30 @@
             });
         })();
 
-        function updateROIOverlay() {
-            if (video.videoWidth && video.videoHeight) {
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-                const roiW = Math.round(videoWidth * (roiWidthPercent / 100));
-                const roiH = Math.round(videoHeight * (roiHeightPercent / 100));
-                const roiX = Math.round((videoWidth - roiW) / 2);
-                const roiY = Math.round((videoHeight - roiH) / 2);
+        async function updateROIOverlay() {
+            const overlayWidthPercent = roiWidthPercent + '%';
+            const overlayHeightPercent = roiHeightPercent + '%';
 
-                // Position overlay exactly at ROI pixels
-                const videoRect = video.getBoundingClientRect();
-                const scaleX = videoRect.width / videoWidth;
-                const scaleY = videoRect.height / videoHeight;
+            roiOverlay.style.width = overlayWidthPercent;
+            roiOverlay.style.height = overlayHeightPercent;
+            roiOverlay.style.top = '50%';
+            roiOverlay.style.left = '50%';
+            roiOverlay.style.transform = 'translate(-50%, -50%)';
 
-                const overlayLeft = videoRect.left + roiX * scaleX;
-                const overlayTop = videoRect.top + roiY * scaleY;
+            const overlayDisplayWidth = roiOverlay.clientWidth;
+            const overlayDisplayHeight = roiOverlay.clientHeight;
 
-                roiOverlay.style.left = `${overlayLeft}px`;
-                roiOverlay.style.top = `${overlayTop}px`;
-                roiOverlay.style.width = `${roiW * scaleX}px`;
-                roiOverlay.style.height = `${roiH * scaleY}px`;
+            const debugCanvasElement = document.getElementById('debugCanvas');
 
-                // Set debugCanvas to exact ROI pixel dimension (no scaling on draw)
-                const debugCanvasElement = document.getElementById('debugCanvas');
-                debugCanvasElement.width = roiW;
-                debugCanvasElement.height = roiH;
-                debugCanvasElement.style.width = roiW * scaleX + 'px';
-                debugCanvasElement.style.height = roiH * scaleY + 'px';
-                debugCanvasElement.style.display = 'none'; // Will show when debug is toggled
-            }
+            // Set debugCanvas size to match ROI dimensions exactly
+            debugCanvasElement.width = overlayDisplayWidth;
+            debugCanvasElement.height = overlayDisplayHeight;
+            debugCanvasElement.style.width = `${overlayDisplayWidth}px`;
+            debugCanvasElement.style.height = `${overlayDisplayHeight}px`;
+
+            console.log(`Overlay Display Size: ${overlayDisplayWidth}px x ${overlayDisplayHeight}px`);
+            console.log(`Debug Canvas Internal Size: ${debugCanvasElement.width}px x ${debugCanvasElement.height}px`);
+            console.log(`Debug Canvas CSS Size: ${debugCanvasElement.style.width} x ${debugCanvasElement.style.height}`);
         }
 
         roiWidthSlider.addEventListener('input', function() {
@@ -1594,23 +1657,23 @@
         async function captureFrameAndPerformOCR() {
             if(!scanning) return;
             scanning = false;
-            const videoWidth = video.videoWidth;
-            const videoHeight = video.videoHeight;
-            videoCanvas.width = videoWidth;
-            videoCanvas.height= videoHeight;
+            const videoDisplayWidth = video.clientWidth;
+            const videoDisplayHeight = video.clientHeight;
+            videoCanvas.width = videoDisplayWidth;
+            videoCanvas.height= videoDisplayHeight;
             const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video,0,0,videoWidth, videoHeight);
+            ctx.drawImage(video,0,0,videoDisplayWidth, videoDisplayHeight);
 
             const overlayRect = roiOverlay.getBoundingClientRect();
             const videoRect = video.getBoundingClientRect();
-            const scaleX = videoWidth / videoRect.width;
-            const scaleY = videoHeight / videoRect.height;
+            const scaleX = videoDisplayWidth / videoRect.width;
+            const scaleY = videoDisplayHeight / videoRect.height;
             const roiX = Math.round((overlayRect.left - videoRect.left) * scaleX);
             const roiY = Math.round((overlayRect.top - videoRect.top) * scaleY);
             const roiW = Math.round(overlayRect.width * scaleX);
             const roiH = Math.round(overlayRect.height * scaleY);
 
-            if(roiX < 0 || roiY < 0 || (roiX + roiW) > videoWidth || (roiY + roiH) > videoHeight){
+            if(roiX < 0 || roiY < 0 || (roiX + roiW) > videoDisplayWidth || (roiY + roiH) > videoDisplayHeight){
                 showError('ROI out of frame bounds');
                 scanning = true;
                 return;
@@ -1624,14 +1687,14 @@
             const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
 
             const debugCanvasElement = document.getElementById('debugCanvas');
-            debugCanvasElement.width = roiW;
-            debugCanvasElement.height = roiH;
+            debugCanvasElement.width = debugCanvasElement.width;
+            debugCanvasElement.height = debugCanvasElement.height;
             const debugContext = debugCanvasElement.getContext('2d');
-            debugContext.clearRect(0,0,debugCanvasElement.width, debugCanvasElement.height);
+            debugContext.clearRect(0,0,debugCanvasElement.width,debugCanvasElement.height);
             const img = await createImageBitmap(preprocessedBlob);
 
-            debugContext.imageSmoothingEnabled = false;
-            debugContext.drawImage(img,0,0, debugCanvasElement.width, debugCanvasElement.height);
+            debugContext.imageSmoothingEnabled=false;
+            debugContext.drawImage(img,0,0);
 
             const averageBrightness = calculateAverageBrightness(debugCanvasElement);
             updateLightbulb(averageBrightness);
@@ -2038,55 +2101,61 @@
             });
         }
 
-        function updatePreview() {
+        async function updatePreview() {
             if (!scanning && video.readyState === video.HAVE_ENOUGH_DATA) {
-                const videoWidth = video.videoWidth;
-                const videoHeight = video.videoHeight;
-
-                const roiW = Math.round(videoWidth * (roiWidthPercent / 100));
-                const roiH = Math.round(videoHeight * (roiHeightPercent / 100));
-                const roiX = Math.round((videoWidth - roiW) / 2);
-                const roiY = Math.round((videoHeight - roiH) / 2);
-
-                videoCanvas.width = videoWidth;
-                videoCanvas.height = videoHeight;
+                const videoDisplayWidth = video.clientWidth;
+                const videoDisplayHeight = video.clientHeight;
+                videoCanvas.width = videoDisplayWidth;
+                videoCanvas.height = videoDisplayHeight;
                 const ctx = videoCanvas.getContext('2d');
-                ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+                ctx.drawImage(video, 0, 0, videoDisplayWidth, videoDisplayHeight);
 
-                roiCanvas.width=roiW;
-                roiCanvas.height=roiH;
-                const roiCtx=roiCanvas.getContext('2d');
-                roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
+                const overlayRect = roiOverlay.getBoundingClientRect();
+                const videoRect = video.getBoundingClientRect();
+                const scaleX = videoDisplayWidth / videoRect.width;
+                const scaleY = videoDisplayHeight / videoRect.height;
+                const roiX = Math.round((overlayRect.left - videoRect.left) * scaleX);
+                const roiY = Math.round((overlayRect.top - videoRect.top) * scaleY);
+                const roiW = Math.round(overlayRect.width * scaleX);
+                const roiH = Math.round(overlayRect.height * scaleY);
 
-                preprocessWithWebGL(roiCanvas).then(blob=>{
+                if (roiW > 0 && roiH > 0) {
+                    roiCanvas.width = roiW;
+                    roiCanvas.height = roiH;
+                    const roiCtx = roiCanvas.getContext('2d');
+                    roiCtx.drawImage(videoCanvas, roiX, roiY, roiW, roiH, 0, 0, roiW, roiH);
+
+                    const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
                     const debugCanvasElement = document.getElementById('debugCanvas');
-                    const debugContext=debugCanvasElement.getContext('2d');
-                    debugContext.clearRect(0,0,debugCanvasElement.width,debugCanvasElement.height);
+                    const debugContext = debugCanvasElement.getContext('2d');
+                    debugContext.clearRect(0, 0, debugCanvasElement.width, debugCanvasElement.height);
 
-                    createImageBitmap(blob).then(img=>{
-                        debugContext.imageSmoothingEnabled=false;
-                        debugContext.drawImage(img, 0, 0, debugCanvasElement.width, debugCanvasElement.height);
-                        const averageBrightness=calculateAverageBrightness(debugCanvasElement);
-                        updateLightbulb(averageBrightness);
+                    const img = await createImageBitmap(preprocessedBlob);
 
-                        debugContext.font='16px Arial';
-                        debugContext.fillStyle='yellow';
-                        let yOffset=20;
-                        if (enableDenoise.checked) { debugContext.fillText(`Denoise: ${denoiseSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableSmoothing.checked) { debugContext.fillText(`Smoothing: ${smoothingSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableSharpen.checked) { debugContext.fillText(`Sharpen: ${sharpenSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableGrayscale.checked) { debugContext.fillText(`Grayscale: ${grayscaleSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableBrightness.checked) { debugContext.fillText(`Brightness: ${brightnessSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableContrast.checked) { debugContext.fillText(`Contrast: ${contrastSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableClarity.checked) { debugContext.fillText(`Clarity: ${claritySlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}%`,10,yOffset);yOffset+=20; }
-                        if (enableThreshold.checked) { debugContext.fillText(`Threshold: ${thresholdSlider.value}`,10,yOffset);yOffset+=20; }
-                        if (enableEdgeDetection.checked) {
-                            if (enableSobel.checked) { debugContext.fillText(`Sobel: ${sobelSlider.value}%`,10,yOffset);yOffset+=20; }
-                            if (enableCanny.checked) { debugContext.fillText(`Canny: ${cannySlider.value}%`,10,yOffset);yOffset+=20; }
-                        }
-                    });
-                });
+                    // Draw without scaling
+                    debugContext.drawImage(img, 0, 0);
+
+                    const averageBrightness = calculateAverageBrightness(debugCanvasElement);
+                    updateLightbulb(averageBrightness);
+
+                    // Draw debug information
+                    debugContext.font = '16px Arial';
+                    debugContext.fillStyle = 'yellow';
+                    let yOffset = 20;
+                    if (enableDenoise.checked) { debugContext.fillText(`Denoise: ${denoiseSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableSmoothing.checked) { debugContext.fillText(`Smoothing: ${smoothingSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableSharpen.checked) { debugContext.fillText(`Sharpen: ${sharpenSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableGrayscale.checked) { debugContext.fillText(`Grayscale: ${grayscaleSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableBrightness.checked) { debugContext.fillText(`Brightness: ${brightnessSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableContrast.checked) { debugContext.fillText(`Contrast: ${contrastSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableClarity.checked) { debugContext.fillText(`Clarity: ${claritySlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableHighlights.checked) { debugContext.fillText(`Highlights: ${highlightsSlider.value}%`, 10, yOffset); yOffset += 20; }
+                    if (enableThreshold.checked) { debugContext.fillText(`Threshold: ${thresholdSlider.value}`, 10, yOffset); yOffset += 20; }
+                    if (enableEdgeDetection.checked) {
+                        if (enableSobel.checked) { debugContext.fillText(`Sobel: ${sobelSlider.value}%`, 10, yOffset); yOffset += 20; }
+                        if (enableCanny.checked) { debugContext.fillText(`Canny: ${cannySlider.value}%`, 10, yOffset); yOffset += 20; }
+                    }
+                }
             }
         }
 
