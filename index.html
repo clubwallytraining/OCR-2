@@ -1195,18 +1195,19 @@
                 return;
             }
 
-            const videoDisplayWidth = video.clientWidth;
-            const videoDisplayHeight = video.clientHeight;
+            // Use native video resolution
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
 
-            const roiW = Math.round(videoDisplayWidth * (roiWidthPercent / 100));
-            const roiH = Math.round(videoDisplayHeight * (roiHeightPercent / 100));
-            const roiX = Math.round((videoDisplayWidth - roiW) / 2);
-            const roiY = Math.round((videoDisplayHeight - roiH) / 2);
+            const roiW = Math.round(videoWidth * (roiWidthPercent / 100));
+            const roiH = Math.round(videoHeight * (roiHeightPercent / 100));
+            const roiX = Math.round((videoWidth - roiW) / 2);
+            const roiY = Math.round((videoHeight - roiH) / 2);
 
-            videoCanvas.width = videoDisplayWidth;
-            videoCanvas.height = videoDisplayHeight;
+            videoCanvas.width = videoWidth;
+            videoCanvas.height = videoHeight;
             const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, videoDisplayWidth, videoDisplayHeight);
+            ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
 
             roiCanvas.width = roiW;
             roiCanvas.height = roiH;
@@ -1540,26 +1541,23 @@
         })();
 
         function updateROIOverlay() {
-            const overlayWidthPercent = roiWidthPercent + '%';
-            const overlayHeightPercent = roiHeightPercent + '%';
-
-            roiOverlay.style.width = overlayWidthPercent;
-            roiOverlay.style.height = overlayHeightPercent;
+            roiOverlay.style.width = roiWidthPercent + '%';
+            roiOverlay.style.height = roiHeightPercent + '%';
             roiOverlay.style.top = '50%';
             roiOverlay.style.left = '50%';
             roiOverlay.style.transform = 'translate(-50%, -50%)';
 
-            const overlayDisplayWidth = roiOverlay.clientWidth;
-            const overlayDisplayHeight = roiOverlay.clientHeight;
-            const debugCanvasElement = document.getElementById('debugCanvas');
-            debugCanvasElement.width = overlayDisplayWidth;
-            debugCanvasElement.height = overlayDisplayHeight;
-            debugCanvasElement.style.width = `${overlayDisplayWidth}px`;
-            debugCanvasElement.style.height = `${overlayDisplayHeight}px`;
-
-            console.log(`Overlay Display Size: ${overlayDisplayWidth}px x ${overlayDisplayHeight}px`);
-            console.log(`Debug Canvas Internal Size: ${debugCanvasElement.width}px x ${debugCanvasElement.height}px`);
-            console.log(`Debug Canvas CSS Size: ${debugCanvasElement.style.width} x ${debugCanvasElement.style.height}`);
+            // Use the video dimensions to set debugCanvas size to exact ROI dimensions
+            if (video.videoWidth && video.videoHeight) {
+                const roiW = Math.round(video.videoWidth * (roiWidthPercent / 100));
+                const roiH = Math.round(video.videoHeight * (roiHeightPercent / 100));
+                const debugCanvasElement = document.getElementById('debugCanvas');
+                debugCanvasElement.width = roiW;
+                debugCanvasElement.height = roiH;
+                debugCanvasElement.style.width = roiW + 'px';
+                debugCanvasElement.style.height = roiH + 'px';
+                console.log(`Overlay ROI Size: ${roiW}px x ${roiH}px`);
+            }
         }
 
         roiWidthSlider.addEventListener('input', function() {
@@ -1652,23 +1650,23 @@
         async function captureFrameAndPerformOCR() {
             if(!scanning) return;
             scanning = false;
-            const videoDisplayWidth = video.clientWidth;
-            const videoDisplayHeight = video.clientHeight;
-            videoCanvas.width = videoDisplayWidth;
-            videoCanvas.height= videoDisplayHeight;
+            const videoWidth = video.videoWidth;
+            const videoHeight = video.videoHeight;
+            videoCanvas.width = videoWidth;
+            videoCanvas.height= videoHeight;
             const ctx = videoCanvas.getContext('2d');
-            ctx.drawImage(video,0,0,videoDisplayWidth, videoDisplayHeight);
+            ctx.drawImage(video,0,0,videoWidth, videoHeight);
 
             const overlayRect = roiOverlay.getBoundingClientRect();
             const videoRect = video.getBoundingClientRect();
-            const scaleX = videoDisplayWidth / videoRect.width;
-            const scaleY = videoDisplayHeight / videoRect.height;
+            const scaleX = videoWidth / videoRect.width;
+            const scaleY = videoHeight / videoRect.height;
             const roiX = Math.round((overlayRect.left - videoRect.left) * scaleX);
             const roiY = Math.round((overlayRect.top - videoRect.top) * scaleY);
             const roiW = Math.round(overlayRect.width * scaleX);
             const roiH = Math.round(overlayRect.height * scaleY);
 
-            if(roiX < 0 || roiY < 0 || (roiX + roiW) > videoDisplayWidth || (roiY + roiH) > videoDisplayHeight){
+            if(roiX < 0 || roiY < 0 || (roiX + roiW) > videoWidth || (roiY + roiH) > videoHeight){
                 showError('ROI out of frame bounds');
                 scanning = true;
                 return;
@@ -1682,8 +1680,8 @@
             const preprocessedBlob = await preprocessWithWebGL(roiCanvas);
 
             const debugCanvasElement = document.getElementById('debugCanvas');
-            debugCanvasElement.width = debugCanvasElement.width;
-            debugCanvasElement.height = debugCanvasElement.height;
+            debugCanvasElement.width = roiW;
+            debugCanvasElement.height = roiH;
             const debugContext = debugCanvasElement.getContext('2d');
             debugContext.clearRect(0,0,debugCanvasElement.width, debugCanvasElement.height);
             const img = await createImageBitmap(preprocessedBlob);
@@ -2098,17 +2096,18 @@
 
         function updatePreview() {
             if (!scanning && video.readyState === video.HAVE_ENOUGH_DATA) {
-                const videoDisplayWidth = video.clientWidth;
-                const videoDisplayHeight = video.clientHeight;
-                videoCanvas.width = videoDisplayWidth;
-                videoCanvas.height = videoDisplayHeight;
+                const videoWidth = video.videoWidth;
+                const videoHeight = video.videoHeight;
+
+                videoCanvas.width = videoWidth;
+                videoCanvas.height = videoHeight;
                 const ctx = videoCanvas.getContext('2d');
-                ctx.drawImage(video, 0, 0, videoDisplayWidth, videoDisplayHeight);
+                ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
 
                 const overlayRect=roiOverlay.getBoundingClientRect();
                 const videoRect=video.getBoundingClientRect();
-                const scaleX = videoDisplayWidth/videoRect.width;
-                const scaleY = videoDisplayHeight/videoRect.height;
+                const scaleX = videoWidth/videoRect.width;
+                const scaleY = videoHeight/videoRect.height;
                 const roiX=Math.round((overlayRect.left - videoRect.left)*scaleX);
                 const roiY=Math.round((overlayRect.top - videoRect.top)*scaleY);
                 const roiW=Math.round(overlayRect.width*scaleX);
