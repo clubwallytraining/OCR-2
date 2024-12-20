@@ -234,8 +234,67 @@
         }
 
         .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 1000;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+
+        #container.side-menu-open {
+            margin-left: 300px;
+            transition: margin-left 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            #container.side-menu-open {
+                margin-left: 0;
+            }
+        }
+
+        #container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-bottom: 240px;
+            overflow: visible;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            width: 100%;
+        }
+
+        #videoWrapper {
+            position: relative;
+            margin-top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        #video {
+            width: 90%;
+            max-width: 500px;
+            border-radius: 12px;
+            background: #000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            position: relative;
+            z-index: 0;
+        }
+
+        #overlay {
             position: absolute;
-            /* No fixed width/height here, will set by JS */
+            width: 60%;
+            height: 150px;
             border: 3px dashed #00b4d8;
             border-radius: 8px;
             top: 50%;
@@ -246,24 +305,14 @@
             z-index: 3;
         }
 
-        .overlay.active {
-            display: block;
-        }
-
-        .overlay.inactive {
-            display: none;
-        }
-
-        .overlay canvas {
+        #debugCanvas {
             position: absolute;
             top: 0;
             left: 0;
+            z-index: 4;
             pointer-events: none;
             border: none;
             background: transparent;
-        }
-
-        #debugCanvas {
             display: none;
         }
 
@@ -405,6 +454,9 @@
             position: absolute;
             top: 0;
             left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
             display: none;
             z-index: 2;
         }
@@ -1146,6 +1198,7 @@
 
             const videoDisplayWidth = video.clientWidth;
             const videoDisplayHeight = video.clientHeight;
+
             const roiW = Math.round(videoDisplayWidth * (roiWidthPercent / 100));
             const roiH = Math.round(videoDisplayHeight * (roiHeightPercent / 100));
             const roiX = Math.round((videoDisplayWidth - roiW) / 2);
@@ -1168,12 +1221,13 @@
             debugContext.clearRect(0, 0, debugCanvasElement.width, debugCanvasElement.height);
             const img = await createImageBitmap(preprocessedBlob);
 
-            debugContext.imageSmoothingEnabled = false;
+            // Draw without scaling
             debugContext.drawImage(img, 0, 0);
 
             const averageBrightness = calculateAverageBrightness(debugCanvasElement);
             updateLightbulb(averageBrightness);
 
+            // Draw debug information
             debugContext.font = '16px Arial';
             debugContext.fillStyle = 'yellow';
             let yOffset = 20;
@@ -1487,23 +1541,30 @@
             });
         })();
 
-        function updateROIOverlay() {
-            const videoDisplayWidth = video.clientWidth;
-            const videoDisplayHeight = video.clientHeight;
-            const roiW = Math.round(videoDisplayWidth * (roiWidthPercent / 100));
-            const roiH = Math.round(videoDisplayHeight * (roiHeightPercent / 100));
-            // Center ROI box
-            // Set overlay dimension and position in pixels, no CSS scaling
-            roiOverlay.style.width = roiW + 'px';
-            roiOverlay.style.height = roiH + 'px';
+        async function updateROIOverlay() {
+            const overlayWidthPercent = roiWidthPercent + '%';
+            const overlayHeightPercent = roiHeightPercent + '%';
 
+            roiOverlay.style.width = overlayWidthPercent;
+            roiOverlay.style.height = overlayHeightPercent;
             roiOverlay.style.top = '50%';
             roiOverlay.style.left = '50%';
             roiOverlay.style.transform = 'translate(-50%, -50%)';
 
+            const overlayDisplayWidth = roiOverlay.clientWidth;
+            const overlayDisplayHeight = roiOverlay.clientHeight;
+
             const debugCanvasElement = document.getElementById('debugCanvas');
-            debugCanvasElement.width = roiW;
-            debugCanvasElement.height = roiH;
+
+            // Set debugCanvas size to match ROI dimensions exactly
+            debugCanvasElement.width = overlayDisplayWidth;
+            debugCanvasElement.height = overlayDisplayHeight;
+            debugCanvasElement.style.width = `${overlayDisplayWidth}px`;
+            debugCanvasElement.style.height = `${overlayDisplayHeight}px`;
+
+            console.log(`Overlay Display Size: ${overlayDisplayWidth}px x ${overlayDisplayHeight}px`);
+            console.log(`Debug Canvas Internal Size: ${debugCanvasElement.width}px x ${debugCanvasElement.height}px`);
+            console.log(`Debug Canvas CSS Size: ${debugCanvasElement.style.width} x ${debugCanvasElement.style.height}`);
         }
 
         roiWidthSlider.addEventListener('input', function() {
@@ -1677,22 +1738,297 @@
                 }
             `;
 
-            const fragmentShaderSource = `...` /* Omitted for brevity in reasoning, full code identical to previous version */
+            const fragmentShaderSource = `
+                precision highp float;
+                varying vec2 v_texCoord;
+                uniform sampler2D u_texture;
 
-            // (The fragment shader code stays the same as previously provided)
+                uniform bool u_denoiseEnabled;
+                uniform float u_denoiseAmount;
+                uniform bool u_smoothingEnabled;
+                uniform float u_smoothingAmount;
+                uniform bool u_sharpenEnabled;
+                uniform float u_sharpenAmount;
+                uniform bool u_grayscaleEnabled;
+                uniform float u_grayscaleAmount;
+                uniform bool u_brightnessEnabled;
+                uniform float u_brightnessAmount;
+                uniform bool u_contrastEnabled;
+                uniform float u_contrastAmount;
+                uniform bool u_clarityEnabled;
+                uniform float u_clarityAmount;
+                uniform bool u_highlightsEnabled;
+                uniform float u_highlightsAmount;
+                uniform bool u_thresholdEnabled;
+                uniform float u_thresholdValue;
+                uniform bool u_edgeDetectionEnabled;
+                uniform bool u_sobelEnabled;
+                uniform float u_sobelAmount;
+                uniform bool u_cannyEnabled;
+                uniform float u_cannyAmount;
 
-            // Continue with the exact same shader compilation and program linking code
-            // (No changes needed here as it does not affect scaling or positioning)
+                vec4 denoiseColor(sampler2D tex, vec2 uv, float strength) {
+                    float offset = 1.0/300.0*strength;
+                    vec4 center = texture2D(tex, uv);
+                    vec4 sum = center;
+                    sum += texture2D(tex, uv+vec2(-offset,0.0));
+                    sum += texture2D(tex, uv+vec2(offset,0.0));
+                    sum += texture2D(tex, uv+vec2(0.0,-offset));
+                    sum += texture2D(tex, uv+vec2(0.0,offset));
+                    vec4 denoised = sum/5.0;
+                    return mix(texture2D(tex,uv), denoised, strength/100.0);
+                }
 
-            // FULL CODE REMAINS IDENTICAL to previous since only positioning and sizing changed
+                vec4 smoothFilter(sampler2D tex, vec2 uv, float strength) {
+                    float offset=1.0/300.0*strength;
+                    vec4 sum = texture2D(tex, uv);
+                    sum += texture2D(tex, uv+vec2(-offset,-offset));
+                    sum += texture2D(tex, uv+vec2(offset,-offset));
+                    sum += texture2D(tex, uv+vec2(-offset,offset));
+                    sum += texture2D(tex, uv+vec2(offset,offset));
+                    sum = sum/5.0;
+                    return mix(texture2D(tex, uv), sum, strength/100.0);
+                }
 
-            // Please assume the fragment shader and subsequent GL code is identical to previously given code
-            // for brevity in this explanation. The final HTML includes the full code verbatim.
+                vec4 sharpenColor(sampler2D tex, vec2 uv, float strength) {
+                    float offset=1.0/300.0*strength;
+                    vec4 center=texture2D(tex,uv);
+                    vec4 sum=center;
+                    sum+=texture2D(tex, uv+vec2(-offset,0.0));
+                    sum+=texture2D(tex, uv+vec2(offset,0.0));
+                    sum+=texture2D(tex, uv+vec2(0.0,-offset));
+                    sum+=texture2D(tex, uv+vec2(0.0,offset));
+                    vec4 blur=sum/5.0;
+                    float a=(strength/100.0)*0.5;
+                    vec4 sharpened=center*(1.0+a)-blur*a;
+                    sharpened=clamp(sharpened,0.0,1.0);
+                    return mix(center,sharpened,strength/100.0);
+                }
 
-            // ... FULL FRAGMENT SHADER AND WEBGL INIT CODE HERE ...
+                vec4 applyGrayscale(vec4 color,float val) {
+                    float amt=val/100.0;
+                    float gray=dot(color.rgb,vec3(0.299,0.587,0.114));
+                    vec4 g=vec4(vec3(gray),color.a);
+                    return mix(color,g,amt);
+                }
 
-            // After compilation and linking is done:
-            // glInitialized = true;
+                vec4 applyBrightness(vec4 color,float val) {
+                    float amt=val;
+                    float factor=(amt-50.0)/50.0;
+                    vec4 bright=color;
+                    bright.rgb += factor;
+                    bright.rgb=clamp(bright.rgb,0.0,1.0);
+                    return mix(color,bright,amt/100.0);
+                }
+
+                vec4 applyContrast(vec4 color,float sliderVal) {
+                    float amt=sliderVal/100.0;
+                    float factor=amt+0.5;
+                    vec4 cont=color;
+                    cont.rgb=(cont.rgb-0.5)*factor+0.5;
+                    cont.rgb=clamp(cont.rgb,0.0,1.0);
+                    return mix(color,cont,amt);
+                }
+
+                vec4 applyClarity(vec4 color,float sliderVal) {
+                    float amt=sliderVal/100.0;
+                    float factor=(amt-0.5);
+                    vec4 clar=color;
+                    clar.r=(clar.r-0.5)*(1.0+factor)+0.5;
+                    clar.g=(clar.g-0.5)*(1.0+factor)+0.5;
+                    clar.b=(clar.b-0.5)*(1.0+factor)+0.5;
+                    clar.rgb=clamp(clar.rgb,0.0,1.0);
+                    return mix(color,clar,amt);
+                }
+
+                vec4 applyHighlights(vec4 color,float sliderVal) {
+                    float amt=sliderVal/100.0;
+                    float factor=(amt-0.5);
+                    vec4 high=color;
+                    if(high.r>0.5) high.r+=factor*(high.r-0.5);
+                    if(high.g>0.5) high.g+=factor*(high.g-0.5);
+                    if(high.b>0.5) high.b+=factor*(high.b-0.5);
+                    high.rgb=clamp(high.rgb,0.0,1.0);
+                    return mix(color,high,amt);
+                }
+
+                vec4 applyThreshold(vec4 color,float val) {
+                    float lum=dot(color.rgb,vec3(0.299,0.587,0.114));
+                    float bin=lum>val?1.0:0.0;
+                    return vec4(vec3(bin),1.0);
+                }
+
+                vec4 applySobel(sampler2D tex, vec2 uv, float sliderVal) {
+                    float amt=sliderVal/100.0;
+                    float offset=1.0/300.0*sliderVal;
+                    vec4 original=texture2D(tex,uv);
+                    float Gx=-1.0*texture2D(tex,uv+vec2(-offset,-offset)).r+
+                              1.0*texture2D(tex,uv+vec2(offset,-offset)).r+
+                             -2.0*texture2D(tex,uv+vec2(-offset,0.0)).r+
+                              2.0*texture2D(tex,uv+vec2(offset,0.0)).r+
+                             -1.0*texture2D(tex,uv+vec2(-offset,offset)).r+
+                              1.0*texture2D(tex,uv+vec2(offset,offset)).r;
+                    float Gy=-1.0*texture2D(tex,uv+vec2(-offset,-offset)).r+
+                           -2.0*texture2D(tex,uv+vec2(0.0,-offset)).r+
+                            1.0*texture2D(tex,uv+vec2(-offset,offset)).r+
+                            2.0*texture2D(tex,uv+vec2(0.0,offset)).r;
+                    float edge=length(vec2(Gx,Gy));
+                    edge=clamp(edge,0.0,1.0);
+                    vec4 sob=vec4(vec3(edge),1.0);
+                    return mix(original,sob,amt);
+                }
+
+                vec4 applyCanny(sampler2D tex, vec2 uv, float sliderVal) {
+                    float amt=sliderVal/100.0;
+                    float offset = 1.0 / 300.0 * sliderVal;
+                    vec4 original=texture2D(tex,uv);
+                    float Gx=-1.0*texture2D(tex, uv+vec2(-offset, -offset)).r+
+                              1.0*texture2D(tex, uv+vec2(offset, -offset)).r+
+                             -2.0*texture2D(tex, uv+vec2(-offset,0.0)).r+
+                              2.0*texture2D(tex, uv+vec2(offset,0.0)).r+
+                             -1.0*texture2D(tex, uv+vec2(-offset, offset)).r+
+                              1.0*texture2D(tex, uv+vec2(offset, offset)).r;
+
+                    float Gy=-1.0*texture2D(tex, uv+vec2(-offset, -offset)).r+
+                           -2.0*texture2D(tex, uv+vec2(0.0, -offset)).r+
+                            1.0*texture2D(tex, uv+vec2(-offset, offset)).r+
+                            2.0*texture2D(tex, uv+vec2(0.0, offset)).r;
+
+                    float edge=length(vec2(Gx,Gy));
+                    edge=clamp(edge,0.0,1.0);
+                    vec4 cannyColor=vec4(vec3(edge),1.0);
+                    return mix(original,cannyColor,amt);
+                }
+
+                void main(void) {
+                    vec4 base=texture2D(u_texture,v_texCoord);
+                    vec4 color=base;
+
+                    if(u_denoiseEnabled) {
+                        vec4 den=denoiseColor(u_texture,v_texCoord,u_denoiseAmount);
+                        color=den;
+                    }
+
+                    if(u_smoothingEnabled) {
+                        vec4 sm = smoothFilter(u_texture,v_texCoord,u_smoothingAmount);
+                        color=sm;
+                    }
+
+                    if(u_sharpenEnabled) {
+                        vec4 sh=sharpenColor(u_texture,v_texCoord,u_sharpenAmount);
+                        color=sh;
+                    }
+
+                    if(u_grayscaleEnabled) {
+                        color=applyGrayscale(color,u_grayscaleAmount);
+                    }
+
+                    if(u_brightnessEnabled) {
+                        color=applyBrightness(color,u_brightnessAmount);
+                    }
+
+                    if(u_contrastEnabled) {
+                        color=applyContrast(color,u_contrastAmount);
+                    }
+
+                    if(u_clarityEnabled) {
+                        color=applyClarity(color,u_clarityAmount);
+                    }
+
+                    if(u_highlightsEnabled) {
+                        color=applyHighlights(color,u_highlightsAmount);
+                    }
+
+                    if(u_thresholdEnabled) {
+                        vec4 th=applyThreshold(color,u_thresholdValue/255.0);
+                        color=th;
+                    }
+
+                    if(u_edgeDetectionEnabled) {
+                        if(u_sobelEnabled) {
+                            color=applySobel(u_texture,v_texCoord,u_sobelAmount);
+                        } else if(u_cannyEnabled) {
+                            color=applyCanny(u_texture,v_texCoord,u_cannyAmount);
+                        }
+                    }
+
+                    gl_FragColor=color;
+                }
+            `;
+
+            const vs = compileShader(gl.VERTEX_SHADER, vertexShaderSource);
+            if(!vs) return;
+            const fs = compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+            if(!fs) return;
+
+            glProgram = gl.createProgram();
+            gl.attachShader(glProgram, vs);
+            gl.attachShader(glProgram, fs);
+            gl.linkProgram(glProgram);
+            if (!gl.getProgramParameter(glProgram, gl.LINK_STATUS)) {
+                const error = gl.getProgramInfoLog(glProgram);
+                console.error('Program link error:', error);
+                showError(`Shader program linking failed: ${error}`);
+                return;
+            }
+            gl.useProgram(glProgram);
+
+            glBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, glBuffer);
+            const vertices = new Float32Array([
+                -1.0, -1.0, 0.0, 0.0,
+                 1.0, -1.0, 1.0, 0.0,
+                -1.0,  1.0, 0.0, 1.0,
+                 1.0,  1.0, 1.0, 1.0
+            ]);
+            gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+            const FSIZE = vertices.BYTES_PER_ELEMENT;
+            const aPosition = gl.getAttribLocation(glProgram, 'a_position');
+            gl.enableVertexAttribArray(aPosition);
+            gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, FSIZE*4, 0);
+
+            const aTexCoord = gl.getAttribLocation(glProgram, 'a_texCoord');
+            gl.enableVertexAttribArray(aTexCoord);
+            gl.vertexAttribPointer(aTexCoord, 2, gl.FLOAT, false, FSIZE*4, FSIZE*2);
+
+            glTexture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, glTexture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+            function uLoc(n) { return gl.getUniformLocation(glProgram, n); }
+
+            window.uLocations = {
+                denoiseEnabled: uLoc("u_denoiseEnabled"),
+                denoiseAmount: uLoc("u_denoiseAmount"),
+                smoothingEnabled: uLoc("u_smoothingEnabled"),
+                smoothingAmount: uLoc("u_smoothingAmount"),
+                sharpenEnabled: uLoc("u_sharpenEnabled"),
+                sharpenAmount: uLoc("u_sharpenAmount"),
+                grayscaleEnabled: uLoc("u_grayscaleEnabled"),
+                grayscaleAmount: uLoc("u_grayscaleAmount"),
+                brightnessEnabled: uLoc("u_brightnessEnabled"),
+                brightnessAmount: uLoc("u_brightnessAmount"),
+                contrastEnabled: uLoc("u_contrastEnabled"),
+                contrastAmount: uLoc("u_contrastAmount"),
+                clarityEnabled: uLoc("u_clarityEnabled"),
+                clarityAmount: uLoc("u_clarityAmount"),
+                highlightsEnabled: uLoc("u_highlightsEnabled"),
+                highlightsAmount: uLoc("u_highlightsAmount"),
+                thresholdEnabled: uLoc("u_thresholdEnabled"),
+                thresholdValue: uLoc("u_thresholdValue"),
+                edgeDetectionEnabled: uLoc("u_edgeDetectionEnabled"),
+                sobelEnabled: uLoc("u_sobelEnabled"),
+                sobelAmount: uLoc("u_sobelAmount"),
+                cannyEnabled: uLoc("u_cannyEnabled"),
+                cannyAmount: uLoc("u_cannyAmount")
+            };
+
+            gl.clearColor(0.0,0.0,0.0,1.0);
+            glInitialized = true;
         }
 
         async function preprocessWithWebGL(sourceCanvas) {
@@ -1713,9 +2049,38 @@
             function setBool(u,v){ gl.uniform1i(u,v?1:0); }
             function setFloat(u,v){ gl.uniform1f(u,v); }
 
-            // Set uniforms based on checkboxes and sliders (unchanged from previous code)
-            // ...
-            // (No changes to preprocessing logic, only sizing and alignment logic changed)
+            setBool(uLocations.denoiseEnabled, enableDenoise.checked);
+            setFloat(uLocations.denoiseAmount, parseFloat(denoiseSlider.value));
+
+            setBool(uLocations.smoothingEnabled, enableSmoothing.checked);
+            setFloat(uLocations.smoothingAmount, parseFloat(smoothingSlider.value));
+
+            setBool(uLocations.sharpenEnabled, enableSharpen.checked);
+            setFloat(uLocations.sharpenAmount, parseFloat(sharpenSlider.value));
+
+            setBool(uLocations.grayscaleEnabled, enableGrayscale.checked);
+            setFloat(uLocations.grayscaleAmount, parseFloat(grayscaleSlider.value));
+
+            setBool(uLocations.brightnessEnabled, enableBrightness.checked);
+            setFloat(uLocations.brightnessAmount, parseFloat(brightnessSlider.value));
+
+            setBool(uLocations.contrastEnabled, enableContrast.checked);
+            setFloat(uLocations.contrastAmount, parseFloat(contrastSlider.value));
+
+            setBool(uLocations.clarityEnabled, enableClarity.checked);
+            setFloat(uLocations.clarityAmount, parseFloat(claritySlider.value));
+
+            setBool(uLocations.highlightsEnabled, enableHighlights.checked);
+            setFloat(uLocations.highlightsAmount, parseFloat(highlightsSlider.value));
+
+            setBool(uLocations.thresholdEnabled, enableThreshold.checked);
+            setFloat(uLocations.thresholdValue, parseFloat(thresholdSlider.value));
+
+            setBool(uLocations.edgeDetectionEnabled, enableEdgeDetection.checked);
+            setBool(uLocations.sobelEnabled, enableSobel.checked);
+            setFloat(uLocations.sobelAmount, parseFloat(sobelSlider.value));
+            setBool(uLocations.cannyEnabled, enableCanny.checked);
+            setFloat(uLocations.cannyAmount, parseFloat(cannySlider.value));
 
             gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 
@@ -1767,12 +2132,13 @@
 
                     const img = await createImageBitmap(preprocessedBlob);
 
-                    debugContext.imageSmoothingEnabled = false;
+                    // Draw without scaling
                     debugContext.drawImage(img, 0, 0);
 
                     const averageBrightness = calculateAverageBrightness(debugCanvasElement);
                     updateLightbulb(averageBrightness);
 
+                    // Draw debug information
                     debugContext.font = '16px Arial';
                     debugContext.fillStyle = 'yellow';
                     let yOffset = 20;
@@ -1814,4 +2180,4 @@
         });
     </script>
 </body>
-</html>
+    </html>
